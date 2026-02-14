@@ -1,0 +1,35 @@
+# Python依赖包列表
+# 安装方法: pip install -r requirements.txt
+
+# 核心科学计算库
+numpy>=1.21.0
+scipy>=1.7.0
+matplotlib>=3.4.0
+
+# 信号处理
+scikit-image>=0.18.0
+
+# 优化算法
+pyswarm>=0.6
+
+# 卡尔曼滤波
+filterpy>=1.4.5
+
+# 数据处理
+pandas>=1.3.0
+
+# Jupyter Notebook (可选)
+jupyter>=1.0.0
+ipython>=7.27.0
+
+# 进度条 (可选)
+tqdm>=4.62.0
+
+# 绘图增强 (可选)
+seaborn>=0.11.0
+
+# 性能分析 (可选)
+numba>=0.54.0
+
+# 文件读写 (可选)
+h5py>=3.1.0
