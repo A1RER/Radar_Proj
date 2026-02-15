@@ -43,11 +43,12 @@ function [echo_data, range_compressed, isar_image] = module_isar_imaging(config)
             y_rot = target_points(k,1)*sin(theta) + target_points(k,2)*cos(theta);
 
             R = R0 + y_rot;
-            tau = 2*R/c;
+            % 使用相对时延（补偿参考距离R0的固定时延）
+            % 绝对时延tau=2R/c≈6.67μs >> fast_time上限1μs，会导致信号全被清零
+            tau = 2*(R - R0)/c;  % 相对时延（量级±2ns，远小于1μs快时间窗口）
 
             sig = exp(1j*pi*Kr*(fast_time - tau).^2) .* ...
                   exp(-1j*4*pi*config.fc*R/c);
-            sig(fast_time < tau) = 0;
 
             echo_data(:, p) = echo_data(:, p) + sig';
         end

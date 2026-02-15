@@ -66,12 +66,13 @@ for p = 1:num_pulses
         
         % 计算瞬时距离
         R = R0 + y_rot;
-        tau = 2*R/c;  % 时间延迟
-        
-        % 生成线性调频信号
+        % 使用相对时延（已补偿参考距离R0的固定时延）
+        % 若用绝对时延 tau=2R/c≈6.67μs >> fast_time上限1μs，信号会被因果性约束全部清零
+        tau = 2*(R - R0)/c;  % 相对时延（量级约±2ns，远小于1μs快时间窗口）
+
+        % 生成线性调频信号（相位保留绝对距离R，用于记录旋转多普勒信息）
         sig = exp(1j*pi*Kr*(fast_time - tau).^2) .* ...
               exp(-1j*4*pi*fc*R/c);
-        sig(fast_time < tau) = 0;  % 因果性约束
         
         echo(:, p) = echo(:, p) + sig';
     end
@@ -131,17 +132,20 @@ title('原始回波数据', 'FontSize', 14);
 xlabel('慢时间（脉冲索引）', 'FontSize', 12);
 ylabel('快时间（采样点）', 'FontSize', 12);
 
-% 子图2：距离压缩后
+% 子图2：距离压缩后（归一化dB显示，便于观察幅度分布）
 subplot(1,3,2);
-imagesc(abs(range_compressed));
+rc_norm = 20*log10(abs(range_compressed)/max(abs(range_compressed(:))) + eps);
+imagesc(rc_norm);
 colorbar;
-title('距离压缩后', 'FontSize', 14);
+title('距离压缩后（dB）', 'FontSize', 14);
 xlabel('慢时间（脉冲索引）', 'FontSize', 12);
 ylabel('距离单元', 'FontSize', 12);
+caxis([-40 0]);
 
-% 子图3：ISAR图像
+% 子图3：ISAR图像（归一化后再显示，caxis[-40,0]才有意义）
 subplot(1,3,3);
-imagesc(20*log10(abs(isar_image) + eps));
+isar_norm = 20*log10(abs(isar_image)/max(abs(isar_image(:))) + eps);
+imagesc(isar_norm);
 colorbar;
 title('ISAR成像结果（dB）', 'FontSize', 14);
 xlabel('多普勒频率', 'FontSize', 12);
