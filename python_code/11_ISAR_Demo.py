@@ -1,6 +1,6 @@
 """
 ISAR成像演示 - Python版本
-作者：[作者]
+作者：Leslie Shen
 用途：快速验证ISAR成像算法（Python实现）
 运行：python isar_demo.py
 """

@@ -1,6 +1,6 @@
 """
 ISAR成像演示 - Python版本
-作者：[作者]
+作者：Leslie Shen
 对应MATLAB文件：01_ISAR_Demo.m
 运行：python 11_ISAR_Python.py
 """
