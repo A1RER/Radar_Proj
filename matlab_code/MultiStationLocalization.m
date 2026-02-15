@@ -56,8 +56,13 @@ classdef MultiStationLocalization < handle
             
             % 精化（非线性优化）
             objective = @(p) obj.tdoaObjective(p, time_differences, c);
-            options = optimoptions('fminunc', 'Display', 'off');
-            pos = fminunc(objective, pos, options);
+            try
+                options = optimoptions('fminunc', 'Display', 'off');
+                pos = fminunc(objective, pos, options);
+            catch
+                opts = optimset('MaxIter', 500, 'Display', 'off');
+                pos = fminsearch(objective, pos, opts);
+            end
             
             fprintf('  估计位置: [%.2f, %.2f, %.2f]\n', pos);
         end
@@ -104,8 +109,13 @@ classdef MultiStationLocalization < handle
             % 最小化所有射线到目标点的距离
             objective = @(p) obj.aoaObjective(p, directions);
             p0 = mean(obj.base_stations, 1);  % 初始猜测
-            options = optimoptions('fminunc', 'Display', 'off');
-            pos = fminunc(objective, p0, options);
+            try
+                options = optimoptions('fminunc', 'Display', 'off');
+                pos = fminunc(objective, p0, options);
+            catch
+                opts = optimset('MaxIter', 500, 'Display', 'off');
+                pos = fminsearch(objective, p0, opts);
+            end
             
             fprintf('  估计位置: [%.2f, %.2f, %.2f]\n', pos);
         end
@@ -171,8 +181,13 @@ classdef MultiStationLocalization < handle
             
             % 精化
             objective = @(p) obj.trilaterationObjective(p, distances);
-            options = optimoptions('fminunc', 'Display', 'off');
-            pos = fminunc(objective, pos, options);
+            try
+                options = optimoptions('fminunc', 'Display', 'off');
+                pos = fminunc(objective, pos, options);
+            catch
+                opts = optimset('MaxIter', 500, 'Display', 'off');
+                pos = fminsearch(objective, pos, opts);
+            end
         end
         
         function cost = trilaterationObjective(obj, pos, distances)
@@ -321,7 +336,17 @@ classdef MultiStationLocalization < handle
                 % 重采样（如果需要）
                 Neff = 1 / sum(weights.^2);
                 if Neff < num_particles / 2
-                    indices = randsample(num_particles, num_particles, true, weights);
+                    % 系统重采样（不依赖 Statistics Toolbox 的 randsample）
+                    cdf = cumsum(weights);
+                    u = (rand() + (0:num_particles-1)) / num_particles;
+                    indices = zeros(1, num_particles);
+                    j = 1;
+                    for ii = 1:num_particles
+                        while u(ii) > cdf(j)
+                            j = j + 1;
+                        end
+                        indices(ii) = j;
+                    end
                     particles = particles(:, indices);
                     weights = ones(1, num_particles) / num_particles;
                 end

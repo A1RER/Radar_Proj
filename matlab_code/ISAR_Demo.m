@@ -84,7 +84,15 @@ end
 
 % 加入噪声
 SNR_dB = 10;
-echo = awgn(echo, SNR_dB, 'measured');
+try
+    echo = awgn(echo, SNR_dB, 'measured');
+catch
+    % 没有 Communications Toolbox，手动添加高斯白噪声
+    signal_power = mean(abs(echo(:)).^2);
+    noise_power = signal_power / (10^(SNR_dB/10));
+    noise = sqrt(noise_power/2) * (randn(size(echo)) + 1j*randn(size(echo)));
+    echo = echo + noise;
+end
 
 fprintf('  回波数据生成完成！\n\n');
 

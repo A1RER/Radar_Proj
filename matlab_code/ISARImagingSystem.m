@@ -97,7 +97,14 @@ classdef ISARImagingSystem < handle
             
             % 添加系统噪声
             SNR_dB = 15;
-            echo = awgn(echo, SNR_dB, 'measured');
+            try
+                echo = awgn(echo, SNR_dB, 'measured');
+            catch
+                signal_power = mean(abs(echo(:)).^2);
+                noise_power = signal_power / (10^(SNR_dB/10));
+                noise = sqrt(noise_power/2) * (randn(size(echo)) + 1j*randn(size(echo)));
+                echo = echo + noise;
+            end
             
             obj.echo_data = echo;
             fprintf('  多目标回波生成完成！\n');
@@ -237,16 +244,22 @@ classdef ISARImagingSystem < handle
             lb = [-0.1, -0.01];
             ub = [0.1, 0.01];
             
-            options = optimoptions('particleswarm', ...
-                'SwarmSize', 30, ...
-                'MaxIterations', 50, ...
-                'Display', 'iter');
-            
-            [best_params, best_entropy] = particleswarm(objective, nvars, lb, ub, options);
-            
+            try
+                options = optimoptions('particleswarm', ...
+                    'SwarmSize', 30, ...
+                    'MaxIterations', 50, ...
+                    'Display', 'iter');
+                [best_params, best_entropy] = particleswarm(objective, nvars, lb, ub, options);
+            catch
+                % 无 Global Optimization Toolbox，用 fminsearch 替代
+                x0 = (lb + ub) / 2;
+                opts = optimset('MaxIter', 200, 'Display', 'off');
+                [best_params, best_entropy] = fminsearch(objective, x0, opts);
+            end
+
             % 应用最优参数
             img = obj.applyPhaseCorrection(data, best_params);
-            
+
             fprintf('  最优熵值: %.4f\n', best_entropy);
             obj.metrics.entropy = best_entropy;
             obj.metrics.entropy_params = best_params;
@@ -261,12 +274,17 @@ classdef ISARImagingSystem < handle
             lb = [-0.1, -0.01];
             ub = [0.1, 0.01];
             
-            options = optimoptions('particleswarm', ...
-                'SwarmSize', 30, ...
-                'MaxIterations', 50, ...
-                'Display', 'off');
-            
-            [best_params, neg_contrast] = particleswarm(objective, nvars, lb, ub, options);
+            try
+                options = optimoptions('particleswarm', ...
+                    'SwarmSize', 30, ...
+                    'MaxIterations', 50, ...
+                    'Display', 'off');
+                [best_params, neg_contrast] = particleswarm(objective, nvars, lb, ub, options);
+            catch
+                x0 = (lb + ub) / 2;
+                opts = optimset('MaxIter', 200, 'Display', 'off');
+                [best_params, neg_contrast] = fminsearch(objective, x0, opts);
+            end
             
             img = obj.applyPhaseCorrection(data, best_params);
             
