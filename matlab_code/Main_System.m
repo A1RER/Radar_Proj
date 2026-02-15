@@ -90,16 +90,16 @@ fprintf('\n生成可视化结果...\n');
 figure('Name', '系统运行结果', 'Position', [50, 50, 1400, 900]);
 set(gcf, 'Color', 'w');
 
-% 子图1：原始ISAR
+% 子图1：原始ISAR（归一化后显示，caxis[-40,0]才有意义）
 subplot(2,3,1);
-imagesc(20*log10(abs(isar_raw)+eps));
+imagesc(20*log10(abs(isar_raw)/max(abs(isar_raw(:)))+eps));
 colormap(jet); colorbar;
 title('原始ISAR图像', 'FontSize', 12);
 caxis([-40, 0]);
 
-% 子图2：优化后ISAR
+% 子图2：优化后ISAR（归一化后显示）
 subplot(2,3,2);
-imagesc(20*log10(abs(isar_optimized)+eps));
+imagesc(20*log10(abs(isar_optimized)/max(abs(isar_optimized(:)))+eps));
 colorbar;
 title('PSO优化后', 'FontSize', 12);
 caxis([-40, 0]);
