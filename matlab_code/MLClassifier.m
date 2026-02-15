@@ -25,62 +25,70 @@ classdef MLClassifier < handle
             obj.metrics = struct();
         end
         
-        function features = extractHOGFeatures(obj, image)
+        function features = getHOGFeatures(obj, image)
             % 提取HOG特征（方向梯度直方图）
-            
+            % 注意：需要 Computer Vision Toolbox
+
             % 确保图像是灰度图
             if size(image, 3) == 3
                 image = rgb2gray(image);
             end
-            
-            % 提取HOG特征
+
+            % 调用内置函数 extractHOGFeatures
             features = extractHOGFeatures(image, 'CellSize', [8 8]);
         end
-        
-        function features = extractLBPFeatures(obj, image)
+
+        function features = getLBPFeatures(obj, image)
             % 提取LBP特征（局部二值模式）
-            
+            % 注意：需要 Computer Vision Toolbox
+
             if size(image, 3) == 3
                 image = rgb2gray(image);
             end
-            
-            % 提取LBP特征
+
+            % 调用内置函数 extractLBPFeatures
             features = extractLBPFeatures(image, 'Upright', false);
         end
-        
-        function features = extractStatisticalFeatures(obj, image)
+
+        function features = getStatisticalFeatures(obj, image)
             % 提取统计特征
-            
+
             if size(image, 3) == 3
                 image = rgb2gray(image);
             end
-            
+
             % 基础统计特征
             mean_val = mean(image(:));
             std_val = std(image(:));
             max_val = max(image(:));
             min_val = min(image(:));
-            
-            % 矩特征
-            mu = moment(image(:), 2);
-            
-            % 纹理特征（灰度共生矩阵）
-            glcm = graycomatrix(uint8(image * 255));
-            stats = graycoprops(glcm, {'Contrast', 'Correlation', 'Energy', 'Homogeneity'});
-            
-            % 组合所有特征
-            features = [mean_val, std_val, max_val, min_val, mu, ...
-                       stats.Contrast, stats.Correlation, ...
-                       stats.Energy, stats.Homogeneity];
+
+            % 方差（替代 moment，不依赖 Statistics Toolbox）
+            mu = var(double(image(:)));
+
+            % 纹理特征
+            try
+                glcm = graycomatrix(uint8(image * 255));
+                stats = graycoprops(glcm, {'Contrast', 'Correlation', 'Energy', 'Homogeneity'});
+                features = [mean_val, std_val, max_val, min_val, mu, ...
+                           stats.Contrast, stats.Correlation, ...
+                           stats.Energy, stats.Homogeneity];
+            catch
+                % 无 Image Processing Toolbox，使用替代特征
+                grad_energy = sum(abs(diff(double(image(:)))));
+                h_grad = sum(abs(diff(double(image), 1, 2)), 'all');
+                features = [mean_val, std_val, max_val, min_val, mu, ...
+                           grad_energy, h_grad];
+            end
         end
-        
+
         function features = extractAllFeatures(obj, image)
             % 提取所有特征的组合
-            
-            hog_feat = obj.extractHOGFeatures(image);
-            lbp_feat = obj.extractLBPFeatures(image);
-            stat_feat = obj.extractStatisticalFeatures(image);
-            
+
+            hog_feat = obj.getHOGFeatures(image);
+            lbp_feat = obj.getLBPFeatures(image);
+            stat_feat = obj.getStatisticalFeatures(image);
+
             % 拼接特征
             features = [hog_feat, lbp_feat, stat_feat];
         end
@@ -97,11 +105,11 @@ classdef MLClassifier < handle
             if strcmp(feature_type, 'all')
                 first_features = obj.extractAllFeatures(images(:,:,:,1));
             elseif strcmp(feature_type, 'hog')
-                first_features = obj.extractHOGFeatures(images(:,:,:,1));
+                first_features = obj.getHOGFeatures(images(:,:,:,1));
             elseif strcmp(feature_type, 'lbp')
-                first_features = obj.extractLBPFeatures(images(:,:,:,1));
+                first_features = obj.getLBPFeatures(images(:,:,:,1));
             else
-                first_features = obj.extractStatisticalFeatures(images(:,:,:,1));
+                first_features = obj.getStatisticalFeatures(images(:,:,:,1));
             end
             
             feature_dim = length(first_features);
@@ -113,11 +121,11 @@ classdef MLClassifier < handle
                 if strcmp(feature_type, 'all')
                     obj.features(i, :) = obj.extractAllFeatures(images(:,:,:,i));
                 elseif strcmp(feature_type, 'hog')
-                    obj.features(i, :) = obj.extractHOGFeatures(images(:,:,:,i));
+                    obj.features(i, :) = obj.getHOGFeatures(images(:,:,:,i));
                 elseif strcmp(feature_type, 'lbp')
-                    obj.features(i, :) = obj.extractLBPFeatures(images(:,:,:,i));
+                    obj.features(i, :) = obj.getLBPFeatures(images(:,:,:,i));
                 else
-                    obj.features(i, :) = obj.extractStatisticalFeatures(images(:,:,:,i));
+                    obj.features(i, :) = obj.getStatisticalFeatures(images(:,:,:,i));
                 end
                 
                 if mod(i, 100) == 0
@@ -132,43 +140,55 @@ classdef MLClassifier < handle
         
         function train(obj, train_features, train_labels)
             % 训练模型
-            
+
             fprintf('正在训练模型（类型：%s）...\n', obj.model_type);
-            
-            switch obj.model_type
-                case 'svm'
-                    % 支持向量机
-                    obj.model = fitcecoc(train_features, train_labels, ...
-                                        'Learners', 'svm');
-                    
-                case 'tree'
-                    % 决策树
-                    obj.model = fitctree(train_features, train_labels, ...
-                                        'MaxNumSplits', 100);
-                    
-                case 'nn'
-                    % 神经网络（浅层）
-                    obj.model = fitcnet(train_features, train_labels, ...
-                                       'LayerSizes', [100, 50]);
-                    
-                case 'ensemble'
-                    % 集成学习（Random Forest）
-                    obj.model = TreeBagger(100, train_features, train_labels, ...
-                                          'OOBPrediction', 'on', ...
-                                          'Method', 'classification');
-                    
-                otherwise
-                    error('未知的模型类型！');
+
+            try
+                switch obj.model_type
+                    case 'svm'
+                        obj.model = fitcecoc(train_features, train_labels, ...
+                                            'Learners', 'svm');
+                    case 'tree'
+                        obj.model = fitctree(train_features, train_labels, ...
+                                            'MaxNumSplits', 100);
+                    case 'nn'
+                        obj.model = fitcnet(train_features, train_labels, ...
+                                           'LayerSizes', [100, 50]);
+                    case 'ensemble'
+                        obj.model = TreeBagger(100, train_features, train_labels, ...
+                                              'OOBPrediction', 'on', ...
+                                              'Method', 'classification');
+                    otherwise
+                        error('未知的模型类型: %s', obj.model_type);
+                end
+            catch ME
+                fprintf('  注意: %s\n', ME.message);
+                fprintf('  使用 KNN 替代（不依赖工具箱）\n');
+                obj.model_type = 'knn_fallback';
+                obj.model = struct('train_features', train_features, ...
+                                   'train_labels', train_labels, 'k', 5);
             end
-            
+
             fprintf('  训练完成！\n');
         end
         
         function [pred_labels, scores] = predict(obj, test_features)
             % 预测
-            
-            if strcmp(obj.model_type, 'ensemble')
-                % TreeBagger的预测方法不同
+
+            if strcmp(obj.model_type, 'knn_fallback')
+                % 手动KNN预测
+                k = obj.model.k;
+                n_test = size(test_features, 1);
+                pred_labels = zeros(n_test, 1);
+                scores = zeros(n_test, 1);
+                for idx = 1:n_test
+                    dists = sum((obj.model.train_features - test_features(idx,:)).^2, 2);
+                    [~, sorted_idx] = sort(dists);
+                    nearest_labels = obj.model.train_labels(sorted_idx(1:k));
+                    pred_labels(idx) = mode(nearest_labels);
+                    scores(idx) = sum(nearest_labels == pred_labels(idx)) / k;
+                end
+            elseif strcmp(obj.model_type, 'ensemble')
                 [pred_labels, scores] = predict(obj.model, test_features);
                 pred_labels = str2double(pred_labels);
             else
@@ -189,8 +209,15 @@ classdef MLClassifier < handle
             fprintf('准确率: %.2f%%\n', accuracy);
             obj.metrics.accuracy = accuracy;
             
-            % 混淆矩阵
-            cm = confusionmat(test_labels, pred_labels);
+            % 混淆矩阵（手动计算，不依赖 Statistics Toolbox）
+            unique_labels = unique([test_labels; pred_labels]);
+            n_labels = length(unique_labels);
+            cm = zeros(n_labels, n_labels);
+            for idx = 1:length(test_labels)
+                row = find(unique_labels == test_labels(idx));
+                col = find(unique_labels == pred_labels(idx));
+                cm(row, col) = cm(row, col) + 1;
+            end
             obj.metrics.confusion_matrix = cm;
             
             % 绘制混淆矩阵
@@ -255,23 +282,26 @@ classdef MLClassifier < handle
         
         function crossValidate(obj, features, labels, k)
             % K折交叉验证
-            
+
             fprintf('正在进行%d折交叉验证...\n', k);
-            
-            cv = cvpartition(labels, 'KFold', k);
+
+            N = size(features, 1);
             accuracies = zeros(k, 1);
-            
+
+            % 手动实现K折划分（不依赖 cvpartition）
+            indices = crossvalind_manual(k, N);
+
             for i = 1:k
-                train_idx = training(cv, i);
-                test_idx = test(cv, i);
-                
+                test_idx = (indices == i);
+                train_idx = ~test_idx;
+
                 % 训练
                 obj.train(features(train_idx, :), labels(train_idx));
-                
+
                 % 测试
                 [pred, ~] = obj.predict(features(test_idx, :));
                 accuracies(i) = sum(pred == labels(test_idx)) / sum(test_idx) * 100;
-                
+
                 fprintf('  Fold %d: %.2f%%\n', i, accuracies(i));
             end
             
@@ -398,4 +428,21 @@ function demo_ml_classification()
     classifier.saveModel('drone_classifier.mat');
     
     fprintf('\n演示完成！\n');
+end
+
+function indices = crossvalind_manual(k, N)
+    % 手动实现K折交叉验证索引划分
+    indices = zeros(N, 1);
+    perm = randperm(N);
+    fold_size = floor(N / k);
+    for i = 1:k
+        if i <= mod(N, k)
+            start_idx = (i-1)*(fold_size+1) + 1;
+            end_idx = i*(fold_size+1);
+        else
+            start_idx = mod(N,k)*(fold_size+1) + (i-mod(N,k)-1)*fold_size + 1;
+            end_idx = start_idx + fold_size - 1;
+        end
+        indices(perm(start_idx:end_idx)) = i;
+    end
 end

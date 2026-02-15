@@ -58,27 +58,40 @@ fprintf('  ✓ 已生成 %d 个样本，%d 个类别\n\n', num_samples, num_clas
 %% 2. 提取特征
 fprintf('[2/5] 提取统计特征...\n');
 
-num_features = 9;  % 特征维度
+has_image_toolbox = exist('graycomatrix', 'file') == 2 || exist('graycomatrix', 'builtin') == 5;
+
+if has_image_toolbox
+    num_features = 9;
+else
+    num_features = 7;  % 无 Image Processing Toolbox 时用替代特征
+    fprintf('  注意: 未检测到 Image Processing Toolbox，使用替代特征\n');
+end
 features = zeros(num_samples, num_features);
 
 for i = 1:num_samples
     img = images(:, :, i);
-    
+
     % 统计特征
     features(i, 1) = mean(img(:));
     features(i, 2) = std(img(:));
     features(i, 3) = max(img(:));
     features(i, 4) = min(img(:));
-    features(i, 5) = moment(img(:), 2);
-    
-    % 纹理特征（简化版）
-    glcm = graycomatrix(uint8(img * 255));
-    stats = graycoprops(glcm);
-    features(i, 6) = stats.Contrast;
-    features(i, 7) = stats.Correlation;
-    features(i, 8) = stats.Energy;
-    features(i, 9) = stats.Homogeneity;
-    
+    features(i, 5) = var(img(:));  % 方差（替代 moment，不依赖 Statistics Toolbox）
+
+    if has_image_toolbox
+        % 纹理特征（需要 Image Processing Toolbox）
+        glcm = graycomatrix(uint8(img * 255));
+        stats = graycoprops(glcm);
+        features(i, 6) = stats.Contrast;
+        features(i, 7) = stats.Correlation;
+        features(i, 8) = stats.Energy;
+        features(i, 9) = stats.Homogeneity;
+    else
+        % 替代纹理特征（不依赖工具箱）
+        features(i, 6) = sum(abs(diff(img(:))));          % 梯度能量
+        features(i, 7) = sum(abs(diff(img, 1, 2)), 'all'); % 水平梯度
+    end
+
     if mod(i, 100) == 0
         fprintf('  进度: %d/%d\n', i, num_samples);
     end
@@ -100,25 +113,52 @@ test_labels = labels(num_train+1:end);
 fprintf('  训练集: %d 样本\n', num_train);
 fprintf('  测试集: %d 样本\n\n', length(test_labels));
 
-%% 4. 训练SVM分类器
-fprintf('[4/5] 训练SVM分类器...\n');
+%% 4. 训练分类器
+fprintf('[4/5] 训练分类器...\n');
 
-model = fitcecoc(train_features, train_labels);
-
-fprintf('  ✓ 训练完成\n\n');
+try
+    model = fitcecoc(train_features, train_labels);
+    use_ecoc = true;
+    fprintf('  ✓ SVM (ECOC) 训练完成\n\n');
+catch
+    % 无 Statistics/ML Toolbox，使用简单的最近邻分类
+    fprintf('  注意: 未检测到 Statistics Toolbox，使用KNN分类\n');
+    model = struct('train_features', train_features, 'train_labels', train_labels);
+    use_ecoc = false;
+    fprintf('  ✓ KNN 训练完成\n\n');
+end
 
 %% 5. 评估模型
 fprintf('[5/5] 评估模型...\n');
 
 % 预测
-[pred_labels, scores] = predict(model, test_features);
+if use_ecoc
+    [pred_labels, scores] = predict(model, test_features);
+else
+    % 手动 KNN (k=5)
+    k = 5;
+    pred_labels = zeros(size(test_labels));
+    for idx = 1:size(test_features, 1)
+        dists = sum((model.train_features - test_features(idx,:)).^2, 2);
+        [~, sorted_idx] = sort(dists);
+        nearest_labels = model.train_labels(sorted_idx(1:k));
+        pred_labels(idx) = mode(nearest_labels);
+    end
+end
 
 % 计算准确率
 accuracy = sum(pred_labels == test_labels) / length(test_labels) * 100;
 fprintf('  准确率: %.2f%%\n\n', accuracy);
 
-% 混淆矩阵
-cm = confusionmat(test_labels, pred_labels);
+% 混淆矩阵（手动计算，不依赖 confusionmat）
+unique_labels = unique([test_labels; pred_labels]);
+n_labels = length(unique_labels);
+cm = zeros(n_labels, n_labels);
+for idx = 1:length(test_labels)
+    row = find(unique_labels == test_labels(idx));
+    col = find(unique_labels == pred_labels(idx));
+    cm(row, col) = cm(row, col) + 1;
+end
 
 % 绘制混淆矩阵
 figure('Color', 'w', 'Position', [100, 100, 800, 600]);
