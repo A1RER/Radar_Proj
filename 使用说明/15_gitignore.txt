@@ -30,6 +30,39 @@ data/real/*
 # results/*.png
 # results/*.pdf
 
+# LaTeX 编译产物（保留 .tex/.bib/.sty/.cls 源文件）
+*.aux
+*.log
+*.toc
+*.out
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.dvi
+*.ps
+*.idx
+*.ilg
+*.ind
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.ist
+*.lol
+_minted*/
+
 # 系统文件
 .DS_Store
 Thumbs.db

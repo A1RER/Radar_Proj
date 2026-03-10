@@ -1,0 +1,96 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# MATLAB
+*.asv
+*.mex*
+slprj/
+
+# Data files
+*.mat
+*.bin
+*.dat
+data/real/*
+!data/real/.gitkeep
+
+# Result artifacts (optional)
+# results/*.png
+# results/*.pdf
+
+# Generated images and PDFs (unless for documentation)
+*.pdf
+*.png
+
+# LaTeX build artifacts (keep source files like .tex/.bib/.sty/.cls)
+# Keep LaTeX sources
+!*.tex
+!*.bib
+!*.sty
+!*.cls
+
+# Ignore LaTeX auxiliary/build files
+*.aux
+*.log
+*.toc
+*.out
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.dvi
+*.ps
+*.idx
+*.ilg
+*.ind
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.ist
+*.lol
+_minted*/
+
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Archives
+*.tar.gz
+*.zip
+*.rar
