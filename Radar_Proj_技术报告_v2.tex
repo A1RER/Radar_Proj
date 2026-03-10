@@ -1,0 +1,431 @@
+%!TEX program = xelatex
+\documentclass[12pt, a4paper]{article}
+
+\usepackage{fontspec}
+\setmainfont{Noto Serif CJK SC}
+\setsansfont{Noto Sans CJK SC}
+\setmonofont{Noto Sans CJK SC}
+
+\usepackage{geometry}
+\geometry{
+  a4paper,
+  top=3cm, bottom=3cm,
+  left=3.5cm, right=3.5cm,
+  headheight=15pt,
+  headsep=0.8cm,
+  footskip=1.2cm
+}
+
+\usepackage{setspace}
+\setstretch{1.45}
+
+\usepackage[dvipsnames,svgnames,x11names]{xcolor}
+\definecolor{primary}{RGB}{27, 79, 138}
+\definecolor{secondary}{RGB}{46, 109, 173}
+\definecolor{lightblue}{RGB}{235, 244, 255}
+\definecolor{tabhead}{RGB}{27, 79, 138}
+\definecolor{rowalt}{RGB}{240, 245, 251}
+
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{primary}}{\thesection}{1em}{}[{\color{secondary}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\normalsize\bfseries\color{secondary}}{\thesubsection}{1em}{}
+\titlespacing{\section}{0pt}{20pt}{8pt}
+\titlespacing{\subsection}{0pt}{14pt}{5pt}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{primary}\bfseries 基于5G基站的无人机ISAR成像感知系统}
+\fancyhead[R]{\small\color{gray} 技术研究报告（草稿）}
+\fancyfoot[C]{\small\color{gray}\thepage}
+\renewcommand{\headrulewidth}{0.6pt}
+\renewcommand{\headrule}{\color{primary}\hrule width\headwidth height\headrulewidth}
+
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{colortbl}
+\usepackage{array}
+\newcolumntype{C}{>{\centering\arraybackslash}X}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=2em, itemsep=3pt, topsep=5pt, parsep=0pt}
+\setlist[enumerate]{leftmargin=2em, itemsep=3pt, topsep=5pt, parsep=0pt}
+
+\usepackage{amsmath, amssymb}
+\usepackage[colorlinks=true, linkcolor=primary, urlcolor=secondary]{hyperref}
+
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable}
+
+\newtcolorbox{infobox}{
+  enhanced, breakable,
+  colback=lightblue, colframe=primary,
+  leftrule=4pt, rightrule=0pt, toprule=0.4pt, bottomrule=0.4pt,
+  arc=2pt, left=10pt, right=10pt, top=8pt, bottom=8pt,
+}
+
+\newtcolorbox{metricbox}{
+  enhanced,
+  colback=primary!8, colframe=primary!50,
+  arc=4pt, boxrule=0.6pt,
+  left=12pt, right=12pt, top=10pt, bottom=10pt,
+}
+
+% 表格行距
+\renewcommand{\arraystretch}{1.35}
+
+\begin{document}
+\thispagestyle{empty}
+
+% ─── 封面 ───
+\begin{tikzpicture}[remember picture, overlay]
+  \fill[primary] (current page.north west)
+    rectangle ([yshift=-5.8cm]current page.north east);
+  \fill[secondary!70]
+    ([yshift=-5.8cm]current page.north west)
+    rectangle ([yshift=-6.5cm]current page.north east);
+\end{tikzpicture}
+
+\vspace*{1.2cm}
+{\fontsize{30pt}{36pt}\selectfont\bfseries\color{white} 技术研究报告}\\[0.5cm]
+{\large\color{white!80} Technical Research Report}
+
+\vspace{4.6cm}
+
+\begin{center}
+{\fontsize{17pt}{23pt}\selectfont\bfseries\color{primary}
+基于5G基站毫米波信号的无人机\\[0.25cm]
+ISAR成像与智能感知系统}\\[0.6cm]
+{\normalsize\color{gray} UAV Detection, ISAR Imaging and Tracking via 5G mmWave}\\[0.2cm]
+{\normalsize\color{gray} SkySense 5G \;/\; 天眸通感}
+\end{center}
+
+\vspace{1.8cm}
+\begin{center}
+\renewcommand{\arraystretch}{1.6}
+\begin{tabular}{rl}
+\color{gray}所在单位   & 重庆邮电大学\quad 通信工程学院 \\
+\color{gray}研究方向   & 智能感知与雷达成像 \\
+\color{gray}代码仓库   &
+  \href{https://github.com/A1RER/Radar_Proj}{\ttfamily A1RER/Radar\_Proj} \\
+\color{gray}报告日期   & 2026年3月 \\
+\color{gray}版本       & v1.0（草稿）\\
+\end{tabular}
+\end{center}
+
+\newpage
+\setcounter{page}{1}
+
+% ─── 摘要 ───
+\begin{infobox}
+{\bfseries\large\color{primary} 摘 要}
+
+\medskip
+本项目以5G NR FR2毫米波基站信号（载频28\,GHz、带宽400\,MHz）为雷达波源，构建了面向低空无人机（UAV）目标的检测、成像与跟踪一体化感知系统（SkySense 5G / 天眸通感）。系统核心由三大算法模块组成：
+
+\medskip
+\textbf{ISAR成像}：利用目标旋转产生的多普勒频移，经距离压缩、运动补偿与自聚焦处理，生成二维高分辨率雷达图像，距离分辨率达 \textbf{37.5\,cm}。
+
+\textbf{PSO优化}：以最小化图像熵为目标函数，粒子群优化算法自动搜索最优相位误差补偿系数，图像熵降低约 \textbf{35\%}，20次迭代内稳定收敛。
+
+\textbf{卡尔曼滤波跟踪}：基于匀速运动模型建立四维状态方程，目标轨迹RMSE由5.2\,m降至 \textbf{1.8\,m}，定位精度提升约 \textbf{65\%}。
+
+\medskip
+系统提供MATLAB与Python完整双语实现，并集成SVM/CNN等机器学习分类子系统，支持5类无人机目标识别。
+
+\medskip
+\textbf{关键词：}5G通感一体化、ISAR成像、粒子群优化、卡尔曼滤波、无人机检测、毫米波雷达
+\end{infobox}
+
+\vspace{0.6cm}
+\tableofcontents
+\newpage
+
+% ════════════════════════════════
+\section{研究背景与意义}
+
+\subsection{低空无人机安全管控的现实需求}
+
+随着无人机技术快速普及，低空空域安全管控问题日益突出。"黑飞"事件频发，对机场净空、军事要地及城市公共安全构成严峻威胁。现有探测手段（光学摄像、声学探测、专用雷达）存在成本高、覆盖范围有限、全天候性差等不足，迫切需要低成本、广覆盖、高可靠的探测方案。
+
+\subsection{5G通感一体化的技术机遇}
+
+5G NR FR2频段（毫米波，24.25--52.6\,GHz）具备极宽信号带宽（最大400\,MHz）与短波长特性，天然具有高距离分辨率和强目标散射能力。利用现有5G基站基础设施兼做雷达感知节点，实现\textbf{通信-感知一体化（ISAC）}，可大幅降低低空监控的部署成本。
+
+\subsection{ISAR成像的适用性分析}
+
+逆合成孔径雷达（ISAR）利用目标相对于雷达的旋转运动合成等效大孔径，在方位向获得高分辨率。无人机飞行过程中姿态持续变化，提供了天然的旋转角度历程，是ISAR成像的理想目标类型。与SAR相比，ISAR对平台运动无严格要求，更适合部署于固定5G基站节点。
+
+% ════════════════════════════════
+\section{系统总体设计}
+
+\subsection{系统架构}
+
+系统按信号处理流程划分为五个层次，各层之间以矩阵形式传递数据，模块间解耦，支持独立调试与功能替换。
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=0.65cm,
+  box/.style={
+    draw=primary, fill=lightblue, rounded corners=4pt,
+    minimum width=6.2cm, minimum height=0.76cm,
+    font=\small\bfseries, text=primary, align=center},
+  arrow/.style={-Stealth, thick, color=secondary},
+  side/.style={
+    draw=secondary!60, fill=secondary!10, rounded corners=3pt,
+    minimum width=3.2cm, minimum height=0.65cm,
+    font=\small, align=center},
+]
+  \node[box] (sig)  {5G基站信号 {\small\mdseries fc=28\,GHz，B=400\,MHz}};
+  \node[box, below=of sig]  (echo) {回波数据生成 {\small\mdseries 4散射点，SNR=10\,dB}};
+  \node[box, below=of echo] (rc)   {距离压缩（匹配滤波）};
+  \node[box, below=of rc]   (mc)   {运动补偿（包络对齐 + 相位校正）};
+  \node[box, below=of mc]   (af)   {自聚焦（熵最小化 / PGA）};
+  \node[box, below=of af, fill=primary!18, draw=primary]
+    (isar) {\bfseries ISAR 二维图像};
+  \node[side, right=1.5cm of isar] (pso) {PSO优化\\图像熵最小化};
+  \node[side, below=0.6cm of pso]  (kal) {卡尔曼跟踪\\轨迹输出};
+  \draw[arrow](sig)--(echo); \draw[arrow](echo)--(rc);
+  \draw[arrow](rc)--(mc);    \draw[arrow](mc)--(af);
+  \draw[arrow](af)--(isar);
+  \draw[arrow](isar.east)--(pso.west);
+  \draw[arrow](isar.east)--++(0.6,0)|-(kal.west);
+\end{tikzpicture}
+\caption{系统信号处理流程图}
+\end{figure}
+
+\subsection{关键参数设置}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lCC}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 参数 &
+  \color{white}\bfseries 取值 &
+  \color{white}\bfseries 说明 \\
+\midrule
+载波频率 $f_c$ & 28\,GHz & 5G NR FR2毫米波频段 \\
+\rowcolor{rowalt}
+信号带宽 $B$ & 400\,MHz & 分辨率 $c/(2B)=37.5$\,cm \\
+脉冲重复频率 PRF & 1000\,Hz & 方位向采样率 \\
+\rowcolor{rowalt}
+目标模型 & 4散射点旋转体 & 仿真典型无人机结构 \\
+信噪比 SNR & 10\,dB & 模拟实际信道条件 \\
+\rowcolor{rowalt}
+卡尔曼采样间隔 $\Delta t$ & 0.1\,s & 匀速运动模型 \\
+\bottomrule
+\end{tabularx}
+\caption{系统关键参数}
+\end{table}
+
+% ════════════════════════════════
+\section{核心算法详述}
+
+\subsection{ISAR成像}
+
+ISAR成像的物理基础是目标旋转产生的多普勒频移。设目标旋转角速度为$\omega$，散射点距旋转中心距离为$r$，则方位向多普勒频率为：
+\begin{equation}
+  f_d = \frac{2\omega r f_c}{c}
+\end{equation}
+
+该频率历程形成类似合成孔径的角度积累，经二维傅里叶变换后得到高分辨率图像。处理步骤如下：
+
+\begin{enumerate}
+  \item \textbf{距离压缩}：对每个慢时间采样的回波与匹配滤波器卷积，获得距离像；
+  \item \textbf{包络对齐}：采用相关法消除各脉冲间距离像平动分量；
+  \item \textbf{相位校正}：估计并补偿残余相位误差（熵最小化或PGA算法）；
+  \item \textbf{方位向FFT}：对补偿后的慢时间数据做傅里叶变换，输出二维ISAR图像。
+\end{enumerate}
+
+\subsection{PSO图像质量优化}
+
+图像熵 $H(I)=-\sum p(i)\log p(i)$ 是衡量ISAR聚焦质量的经典指标，熵越小图像越聚焦。PSO以 $H(I)$ 为目标函数，在相位补偿系数空间 $(\alpha,\beta)$ 上进行全局搜索：
+
+\begin{equation}
+  \min_{\alpha,\,\beta}\; H\!\left(I(\alpha,\beta)\right)
+  \quad\text{s.t.}\quad
+  \alpha\in[-0.1,\;0.1],\quad
+  \beta\in[-0.01,\;0.01]
+\end{equation}
+
+相比梯度下降法，PSO有效规避了局部极值问题，参数设置见表~\ref{tab:pso}。
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{0.62\textwidth}{LC}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries PSO参数 &
+  \color{white}\bfseries 取值 \\
+\midrule
+粒子数 & 20 \\
+\rowcolor{rowalt}
+最大迭代次数 & 30 \\
+图像熵改善量 & $\approx 35\%$ \\
+\rowcolor{rowalt}
+收敛迭代次数 & $<20$ 次 \\
+\bottomrule
+\end{tabularx}
+\caption{PSO优化参数}
+\label{tab:pso}
+\end{table}
+
+\subsection{卡尔曼滤波目标跟踪}
+
+采用线性匀速（CV）运动模型，状态方程为：
+\begin{equation}
+  \mathbf{x}_k = \mathbf{F}\mathbf{x}_{k-1} + \mathbf{w}_k,\qquad
+  \mathbf{z}_k = \mathbf{H}\mathbf{x}_k + \mathbf{v}_k
+\end{equation}
+其中状态向量 $\mathbf{x}=[x,\,y,\,v_x,\,v_y]^\top$，测量向量 $\mathbf{z}=[x,\,y]^\top$，$\mathbf{w}_k$、$\mathbf{v}_k$ 分别为过程噪声与测量噪声（零均值高斯白噪声）。
+
+\begin{metricbox}
+\centering
+{\bfseries 跟踪性能}\\[6pt]
+原始测量 RMSE：5.2\,m
+\quad$\xrightarrow{\text{卡尔曼滤波}}$\quad
+\textbf{RMSE：1.8\,m}（精度提升约 \textbf{65\%}）
+\end{metricbox}
+
+\subsection{多基站协同定位（扩展模块）}
+
+\texttt{MultiStationLocalization.m} 实现了TDOA（到达时差）、AOA（到达角度）、RSS（接收信号强度）三种定位体制的融合，支持多5G基站节点协同，为后续实测系统提供空间定位精度下界的理论评估依据。
+
+% ════════════════════════════════
+\section{无人机目标分类子系统}
+
+\subsection{特征提取}
+
+从ISAR图像中提取三类特征并拼接送入分类器：
+
+\begin{itemize}
+  \item \textbf{HOG}（方向梯度直方图）：捕捉目标外轮廓形状信息；
+  \item \textbf{LBP}（局部二值模式）：描述散射点分布的纹理结构；
+  \item \textbf{统计矩}（均值、方差、偏度、峰度）：表征图像全局分布特性。
+\end{itemize}
+
+\subsection{分类器对比}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lLL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 分类器 &
+  \color{white}\bfseries 特点 &
+  \color{white}\bfseries 适用场景 \\
+\midrule
+SVM（RBF核） & 泛化性强，适合中小样本 & 快速原型验证 \\
+\rowcolor{rowalt}
+决策树/随机森林 & 可解释性好，集成效果稳定 & 特征重要性分析 \\
+PyTorch CNN & 端到端深度特征学习 & 大样本、高精度需求 \\
+\rowcolor{rowalt}
+ResNet迁移学习 & 预训练特征复用 & 数据稀缺场景 \\
+\bottomrule
+\end{tabularx}
+\caption{机器学习分类器对比}
+\end{table}
+
+仿真数据集：1000张合成ISAR图像，涵盖5类无人机目标，采用80/20训练-测试划分。
+
+% ════════════════════════════════
+\section{系统实现情况}
+
+\subsection{双语代码结构}
+
+项目提供完整的MATLAB与Python双语实现，两者算法逻辑完全对应，便于在不同环境下交叉验证。
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lLL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 模块 &
+  \color{white}\bfseries MATLAB &
+  \color{white}\bfseries Python \\
+\midrule
+ISAR成像 & \texttt{ISAR\_Demo.m} & \texttt{11\_ISAR\_Python.py} \\
+\rowcolor{rowalt}
+PSO优化 & \texttt{PSO\_Optimization.m} & \texttt{12\_PSO.py} \\
+卡尔曼跟踪 & \texttt{Kalman\_Filter.m} & \texttt{13\_Kalman.py} \\
+\rowcolor{rowalt}
+ML分类 & \texttt{MLClassifier.m} & \texttt{18\_ML\_Classification.py} \\
+系统集成 & \texttt{Main\_System.m} & --- \\
+\rowcolor{rowalt}
+多基站定位 & \texttt{MultiStationLocalization.m} & --- \\
+\bottomrule
+\end{tabularx}
+\caption{MATLAB与Python代码对照}
+\end{table}
+
+\subsection{运行环境}
+
+\begin{itemize}
+  \item MATLAB R2020b 及以上，需 Signal Processing Toolbox、Optimization Toolbox；
+  \item Python 3.10，主要依赖：\texttt{numpy}、\texttt{scipy}、\texttt{pyswarm}、\texttt{filterpy}、\texttt{torch}、\texttt{scikit-learn}。
+\end{itemize}
+
+% ════════════════════════════════
+\section{性能指标汇总}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lCC}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 性能指标 &
+  \color{white}\bfseries 数值 &
+  \color{white}\bfseries 对比基线 \\
+\midrule
+距离分辨率 & 37.5\,cm & 由400\,MHz带宽决定 \\
+\rowcolor{rowalt}
+PSO图像熵改善 & $\approx 35\%$ & 未优化直接成像 \\
+PSO收敛速度 & $<20$ 次迭代 & 梯度法约需50+次 \\
+\rowcolor{rowalt}
+卡尔曼跟踪RMSE & 1.8\,m & 原始测量5.2\,m \\
+定位精度提升 & $\approx 65\%$ & 无滤波直接测量 \\
+\rowcolor{rowalt}
+支持目标类别数 & 5类无人机 & HOG+LBP+统计特征 \\
+\bottomrule
+\end{tabularx}
+\caption{核心性能指标汇总}
+\end{table}
+
+% ════════════════════════════════
+\section{现有不足与下一步计划}
+
+\subsection{当前主要局限}
+
+\begin{itemize}
+  \item \textbf{仿真数据驱动}：所有实验基于合成回波数据，尚未接入真实5G基站射频信号；
+  \item \textbf{目标模型简化}：4散射点旋转体模型对复杂飞行姿态的表征精度有限；
+  \item \textbf{多基站融合待验}：协同定位模块已完成算法实现，系统级联调尚未开展；
+  \item \textbf{分类数据集较小}：1000张合成图像训练的CNN泛化能力需进一步评估。
+\end{itemize}
+
+\subsection{后续研究计划}
+
+\begin{enumerate}
+  \item \textbf{阶段一}：引入真实5G信道采集数据，完成实测回波预处理与成像验证；
+  \item \textbf{阶段二}：扩充数据集规模，引入数据增强策略，提升分类器泛化能力；
+  \item \textbf{阶段三}：实现多基站协同定位系统联调，评估TDOA/AOA融合精度下界；
+  \item \textbf{长期目标}：凝练成果，投稿信号处理或雷达领域相关期刊/会议。
+\end{enumerate}
+
+% ════════════════════════════════
+\section{结语}
+
+本项目以5G NR FR2毫米波信号为切入点，系统性地构建了无人机ISAR成像感知的算法框架，涵盖信号处理、智能优化、目标跟踪与机器学习分类四大技术维度，提供MATLAB与Python完整双语实现。当前版本在仿真层面验证了各核心算法的有效性，性能指标达到预期。下一步将向实测数据与多基站协同两个方向推进，为5G通感一体化低空安防应用提供技术储备。
+
+\vspace{1.5cm}
+\begin{center}
+  \color{gray}\small
+  注：本报告为技术草稿，数据源于仿真实验，实测验证工作持续进行中。\\[3pt]
+  如需转化为项目申请书，建议补充研究目标、考核节点与经费预算说明。\\[8pt]
+  \href{https://github.com/A1RER/Radar_Proj}{\ttfamily github.com/A1RER/Radar\_Proj}
+  \quad$\cdot$\quad MIT License
+\end{center}
+
+\end{document}
