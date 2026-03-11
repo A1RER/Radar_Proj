@@ -4,17 +4,45 @@
 \usepackage{fontspec}
 \usepackage{xeCJK}
 \xeCJKsetup{CJKmath=true, AutoFakeBold=2.5, AutoFakeSlant=0.2}
-\punctstyle{kaiming}
+\punctstyle{plain}
 
 % ── 中文字体（使用系统可用的文泉驿正黑） ──
-\setCJKmainfont{WenQuanYi Zen Hei}
-\setCJKsansfont{WenQuanYi Zen Hei}
-\setCJKmonofont{WenQuanYi Zen Hei Mono}
+\IfFontExistsTF{WenQuanYi Zen Hei}{
+  \setCJKmainfont{WenQuanYi Zen Hei}
+  \setCJKsansfont{WenQuanYi Zen Hei}
+  \IfFontExistsTF{WenQuanYi Zen Hei Mono}{
+    \setCJKmonofont{WenQuanYi Zen Hei Mono}
+  }{
+    \setCJKmonofont{WenQuanYi Zen Hei}
+  }
+}{
+  \IfFontExistsTF{Microsoft YaHei}{
+    \setCJKmainfont{Microsoft YaHei}
+    \setCJKsansfont{Microsoft YaHei}
+    \setCJKmonofont{Microsoft YaHei}
+  }{
+    \setCJKmainfont{SimSun}
+    \setCJKsansfont{SimSun}
+    \setCJKmonofont{SimSun}
+  }
+}
 
 % ── 西文字体 ──
-\setmainfont{Liberation Serif}
-\setsansfont{Liberation Sans}
-\setmonofont{DejaVu Sans Mono}
+\IfFontExistsTF{Liberation Serif}{
+  \setmainfont{Liberation Serif}
+}{
+  \setmainfont{Times New Roman}
+}
+\IfFontExistsTF{Liberation Sans}{
+  \setsansfont{Liberation Sans}
+}{
+  \setsansfont{Arial}
+}
+\IfFontExistsTF{DejaVu Sans Mono}{
+  \setmonofont{DejaVu Sans Mono}
+}{
+  \setmonofont{Consolas}
+}
 
 \usepackage{geometry}
 \geometry{
