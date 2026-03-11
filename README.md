@@ -106,6 +106,20 @@ python 13_Kalman.py             # 卡尔曼滤波跟踪
 python 18_ML_Classification.py  # PyTorch CNN 无人机分类（1000 张合成图像）
 ```
 
+#### LaTeX 技术报告（编译与预览）
+
+本项目技术报告源文件：`Radar_Proj_技术报告_v2.tex`
+
+- TeX 依赖清单（类似 requirements）：`使用说明/16_tex_requirements.txt`
+- 推荐编译命令：`xelatex -interaction=nonstopmode -halt-on-error Radar_Proj_技术报告_v2.tex`
+
+**VS Code 预览方法（推荐）**
+
+1. 安装扩展：LaTeX Workshop
+2. 打开 `Radar_Proj_技术报告_v2.tex`
+3. 执行命令 `Build LaTeX project`
+4. 执行命令 `View LaTeX PDF` 打开侧边预览
+
 ### 项目结构
 
 ```

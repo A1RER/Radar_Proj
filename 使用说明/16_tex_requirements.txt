@@ -1,0 +1,56 @@
+========================================
+TeX 环境依赖清单（类似 requirements）
+项目: Radar_Proj_技术报告_v2.tex
+========================================
+
+[1] 编译引擎
+- XeLaTeX
+- 推荐版本: TeX Live 2025+ 或 MiKTeX 最新稳定版
+
+[2] 必需 LaTeX 宏包（TeX Live 常见包名）
+- fontspec
+- xeCJK
+- geometry
+- setspace
+- xcolor
+- graphicx
+- tikz
+- titlesec
+- fancyhdr
+- booktabs
+- tabularx
+- colortbl
+- array
+- enumitem
+- amsmath
+- amssymb
+- float
+- hyperref
+- tcolorbox
+
+[3] 字体策略（已在 tex 内置回退）
+- 中文优先: WenQuanYi Zen Hei
+- 中文回退: Microsoft YaHei -> SimSun
+- 西文优先: Liberation Serif / Liberation Sans / DejaVu Sans Mono
+- 西文回退: Times New Roman / Arial / Consolas
+
+[4] 一次编译命令（Windows）
+- xelatex -interaction=nonstopmode -halt-on-error Radar_Proj_技术报告_v2.tex
+
+[5] 推荐编译命令（自动多轮，处理目录/引用）
+- latexmk -xelatex -interaction=nonstopmode Radar_Proj_技术报告_v2.tex
+
+[6] 常见问题
+- 报错: The font "xxx" cannot be found
+  处理: 安装字体，或继续使用当前 tex 的自动回退设置
+
+- 报错: 控制序列重复/xeCJK glyphbounds/nullfont
+  处理: 优先确认字体可用；本项目已使用 \punctstyle{plain} 规避高风险组合
+
+- 仅有 Overfull \\hbox 警告
+  处理: 这是排版告警，不影响 PDF 生成
+
+[7] VS Code 预览建议
+- 安装扩展: LaTeX Workshop
+- 在 .tex 文件中执行: Build LaTeX project
+- 侧边打开: View LaTeX PDF
