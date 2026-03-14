@@ -160,13 +160,13 @@ Radar_Proj/
 
 利用目标相对于雷达的旋转运动产生多普勒频移，通过二维傅里叶变换生成高分辨率雷达图像。
 
-| 参数 | 值 |
-|---|---|
-| 载波频率 | 28 GHz（5G NR FR2 毫米波）|
-| 信号带宽 | 400 MHz |
-| 脉冲重复频率 | 1000 Hz |
-| 距离分辨率 | 37.5 cm |
-| 仿真目标 | 4 散射点旋转体 |
+| 参数         | 值                         |
+| ------------ | -------------------------- |
+| 载波频率     | 28 GHz（5G NR FR2 毫米波） |
+| 信号带宽     | 400 MHz                    |
+| 脉冲重复频率 | 1000 Hz                    |
+| 距离分辨率   | 37.5 cm                    |
+| 仿真目标     | 4 散射点旋转体             |
 
 #### PSO 优化
 
@@ -193,21 +193,21 @@ Radar_Proj/
 
 从 ISAR 图像中提取 HOG、LBP 及统计特征，对多类无人机目标进行识别。
 
-| 方法 | 说明 |
-|---|---|
-| SVM | 径向基核，多类分类 |
+| 方法              | 说明                   |
+| ----------------- | ---------------------- |
+| SVM               | 径向基核，多类分类     |
 | 决策树 / 随机森林 | 可解释性强，集成效果好 |
-| PyTorch CNN | 端到端深度特征学习 |
-| ResNet 迁移学习 | 小样本场景下高精度 |
+| PyTorch CNN       | 端到端深度特征学习     |
+| ResNet 迁移学习   | 小样本场景下高精度     |
 
 ### MATLAB vs Python
 
-| 特性 | MATLAB | Python |
-|---|---|---|
-| 信号处理 | 内置工具箱，成熟稳定 | SciPy，灵活开源 |
-| 深度学习 | 有限支持 | PyTorch / TensorFlow 生态完整 |
-| 可视化 | 简洁直观 | Matplotlib，高度可定制 |
-| 开源免费 | 否 | 是 |
+| 特性     | MATLAB               | Python                        |
+| -------- | -------------------- | ----------------------------- |
+| 信号处理 | 内置工具箱，成熟稳定 | SciPy，灵活开源               |
+| 深度学习 | 有限支持             | PyTorch / TensorFlow 生态完整 |
+| 可视化   | 简洁直观             | Matplotlib，高度可定制        |
+| 开源免费 | 否                   | 是                            |
 
 ### 许可证
 
@@ -352,13 +352,13 @@ Radar_Proj/
 
 Exploits the Doppler shifts induced by the relative rotational motion between the radar and target. A 2D Fourier transform produces a high-resolution radar image.
 
-| Parameter | Value |
-|---|---|
-| Carrier frequency | 28 GHz (5G NR FR2 mmWave) |
-| Signal bandwidth | 400 MHz |
-| Pulse Repetition Frequency | 1000 Hz |
-| Range resolution | 37.5 cm |
-| Simulated target | 4-scatterer rotating body |
+| Parameter                  | Value                     |
+| -------------------------- | ------------------------- |
+| Carrier frequency          | 28 GHz (5G NR FR2 mmWave) |
+| Signal bandwidth           | 400 MHz                   |
+| Pulse Repetition Frequency | 1000 Hz                   |
+| Range resolution           | 37.5 cm                   |
+| Simulated target           | 4-scatterer rotating body |
 
 #### PSO Optimization
 
@@ -385,21 +385,21 @@ Sampling interval: dt = 0.1 s
 
 HOG, LBP, and statistical features are extracted from ISAR images for multi-class UAV recognition.
 
-| Method | Notes |
-|---|---|
-| SVM | RBF kernel, multi-class |
-| Decision Tree / Random Forest | Interpretable, ensemble-boosted |
-| PyTorch CNN | End-to-end deep feature learning |
-| ResNet (transfer learning) | High accuracy in low-data regimes |
+| Method                        | Notes                             |
+| ----------------------------- | --------------------------------- |
+| SVM                           | RBF kernel, multi-class           |
+| Decision Tree / Random Forest | Interpretable, ensemble-boosted   |
+| PyTorch CNN                   | End-to-end deep feature learning  |
+| ResNet (transfer learning)    | High accuracy in low-data regimes |
 
 ### MATLAB vs Python
 
-| Feature | MATLAB | Python |
-|---|---|---|
-| Signal processing | Built-in toolboxes, mature | SciPy, flexible & open-source |
-| Deep learning | Limited support | Full PyTorch / TensorFlow ecosystem |
-| Visualization | Simple and intuitive | Matplotlib, highly customizable |
-| Free & open-source | No | Yes |
+| Feature            | MATLAB                     | Python                              |
+| ------------------ | -------------------------- | ----------------------------------- |
+| Signal processing  | Built-in toolboxes, mature | SciPy, flexible & open-source       |
+| Deep learning      | Limited support            | Full PyTorch / TensorFlow ecosystem |
+| Visualization      | Simple and intuitive       | Matplotlib, highly customizable     |
+| Free & open-source | No                         | Yes                                 |
 
 ### License
 

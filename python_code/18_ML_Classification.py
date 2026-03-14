@@ -215,6 +215,8 @@ class DroneClassifier:
                 
                 total_loss += loss.item()
                 _, predicted = outputs.max(1)
+
+
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
         
