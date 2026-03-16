@@ -434,9 +434,9 @@ classdef ISARImagingSystem < handle
             title('ISAR图像（线性）', 'FontSize', 14);
             xlabel('多普勒'); ylabel('距离');
             
-            % 子图5：ISAR图像（dB尺度）
+            % 子图5：ISAR图像（dB尺度，归一化）
             subplot(2,3,5);
-            imagesc(20*log10(abs(obj.isar_image) + eps));
+            imagesc(20*log10(abs(obj.isar_image)/max(abs(obj.isar_image(:))) + eps));
             colorbar;
             caxis([-40, 0]);
             title('ISAR图像（dB）', 'FontSize', 14);

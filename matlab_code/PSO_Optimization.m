@@ -19,19 +19,9 @@ function [img_opt, best_params, history] = module_pso_optimization(data, config)
     %% 定义目标函数
     objective = @(x) calc_entropy(x, data);
 
-    %% 尝试使用内置 particleswarm，没有则手动实现
-    try
-        options = optimoptions('particleswarm', ...
-                              'SwarmSize', num_particles, ...
-                              'MaxIterations', num_iterations, ...
-                              'Display', 'off');
-        [best_params, best_fitness] = particleswarm(objective, dim, lb, ub, options);
-        history = linspace(0.9, best_fitness, num_iterations);
-    catch
-        fprintf('    注意: 未检测到 Global Optimization Toolbox，使用手动PSO\n');
-        [best_params, best_fitness, history] = pso_manual(objective, dim, lb, ub, ...
-                                                          num_particles, num_iterations);
-    end
+    %% 使用手动PSO实现（保证记录完整迭代历史）
+    [best_params, best_fitness, history] = pso_manual(objective, dim, lb, ub, ...
+                                                      num_particles, num_iterations);
 
     %% 应用最优参数
     t = 1:size(data,2);

@@ -139,9 +139,11 @@ if exist('rmse', 'var')
     grid on;
 end
 
-% 保存
-saveas(gcf, 'system_results.png');
-saveas(gcf, 'system_results.pdf');
+% 保存（使用脚本所在目录，避免 pwd 不对导致报错）
+script_dir = fileparts(mfilename('fullpath'));
+if isempty(script_dir), script_dir = pwd; end
+saveas(gcf, fullfile(script_dir, 'system_results.png'));
+saveas(gcf, fullfile(script_dir, 'system_results.pdf'));
 fprintf('    结果已保存！\n');
 
 %% ===== 性能报告 =====

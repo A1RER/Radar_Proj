@@ -74,6 +74,17 @@ data/real/*
 *.lol
 _minted*/
 
+# 本地笔记/日程（不上传）
+md笔记/02_4Week_Plan.md
+md笔记/03_Daily_Checklist.md
+md笔记/08_Functions_TODO.md
+md笔记/09_PPT_Outline.md
+md笔记/10_Final_Checklist.md
+md笔记/12_Dual_Language_Plan.md
+md笔记/16_Research_Roadmap.md
+使用说明/
+【点我开始】使用指南.txt
+
 # System files
 .DS_Store
 Thumbs.db

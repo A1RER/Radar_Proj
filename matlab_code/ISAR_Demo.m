@@ -151,8 +151,10 @@ xlabel('多普勒频率', 'FontSize', 12);
 ylabel('距离', 'FontSize', 12);
 caxis([-40 0]);
 
-% 保存图像
-saveas(gcf, 'isar_result.png');
+% 保存图像（使用脚本所在目录）
+script_dir = fileparts(mfilename('fullpath'));
+if isempty(script_dir), script_dir = pwd; end
+saveas(gcf, fullfile(script_dir, 'isar_result.png'));
 fprintf('  图像已保存为 isar_result.png\n\n');
 
 %% 8. 性能报告
