@@ -1,4 +1,5 @@
-%!TEX program = xelatex
+% !TEX program = latexmk
+% !TEX options = -xelatex -synctex=1 -interaction=nonstopmode -file-line-error "%DOC%"
 \documentclass[12pt, a4paper]{article}
 
 \usepackage{fontspec}
@@ -421,7 +422,7 @@ LFM信号的瞬时频率为：
   + n(\hat{t},\, t_m)
   \label{eq:echo}
 \end{equation}
-其中，第一个指数项为LFM脉冲压缩相位，第二个指数项包含了距离与多普勒信息，$n(\hat{t}, t_m)$为加性高斯白噪声。
+其中，第一个指数项为LFM脉冲压缩相位，第二个指数项包含了距离与多普勒信息，$n(\hat{t},\allowbreak t_m)$为加性高斯白噪声。
 
 \subsection{匹配滤波与距离压缩}
 \label{subsec:matched_filter}
@@ -802,7 +803,7 @@ ResNet迁移学习 & 利用ImageNet预训练权重 & 数据需求少，收敛快
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{matlab_code/figures/fig_isar_result.png}
+\includegraphics[width=0.95\textwidth]{../matlab_code/figures/fig_isar_result.png}
 \caption{ISAR成像结果：(a) 原始回波数据；(b) 距离压缩后（dB显示）；(c) 二维ISAR图像（dB显示）}
 \label{fig:isar_result}
 \end{figure}
@@ -811,7 +812,7 @@ ResNet迁移学习 & 利用ImageNet预训练权重 & 数据需求少，收敛快
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth]{matlab_code/figures/fig_pso_convergence.png}
+\includegraphics[width=0.65\textwidth]{../matlab_code/figures/fig_pso_convergence.png}
 \caption{PSO优化收敛曲线：图像熵随迭代次数单调下降，约20次迭代后趋于稳定}
 \label{fig:pso_convergence}
 \end{figure}
@@ -820,7 +821,7 @@ ResNet迁移学习 & 利用ImageNet预训练权重 & 数据需求少，收敛快
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{matlab_code/figures/fig_kalman_tracking.png}
+\includegraphics[width=0.95\textwidth]{../matlab_code/figures/fig_kalman_tracking.png}
 \caption{卡尔曼滤波跟踪结果：(a) 真实轨迹、含噪测量与滤波估计对比；(b) RMSE定位精度对比}
 \label{fig:kalman_tracking}
 \end{figure}
@@ -829,7 +830,7 @@ ResNet迁移学习 & 利用ImageNet预训练权重 & 数据需求少，收敛快
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth]{matlab_code/figures/fig_confusion_matrix.png}
+\includegraphics[width=0.6\textwidth]{../matlab_code/figures/fig_confusion_matrix.png}
 \caption{无人机目标分类混淆矩阵（5类，基于统计特征+SVM分类器）}
 \label{fig:confusion_matrix}
 \end{figure}
@@ -860,7 +861,7 @@ ML分类 & \texttt{MLClassifier.m} & \texttt{18\_ML\_Classification.py} \\
 合成数据生成 & \texttt{generateSyntheticData.m} & --- \\
 系统集成 & \texttt{Main\_System.m} & --- \\
 \rowcolor{rowalt}
-多基站定位 & \texttt{MultiStationLocalization.m} & --- \\
+多基站定位 & \texttt{\small MultiStationLocalization.m} & --- \\
 \bottomrule
 \end{tabularx}
 \caption{双语代码对应关系}
@@ -905,9 +906,9 @@ PSO收敛速度 & $<20$ 次迭代 & 梯度法约需50+次 & 全局搜索能力 \
 \end{table}
 
 % ════════════════════════════════════════════════════════
-\section{现有不足与下一步计划}
+\section{现有不足}
 
-\subsection{当前主要局限}
+本项目在仿真层面完成了系统性验证，但仍存在以下主要局限：
 
 \begin{enumerate}
   \item \textbf{仿真数据驱动}：所有实验基于合成回波数据，尚未接入真实5G基站射频信号，无法验证实际信道条件下的算法鲁棒性；
@@ -917,21 +918,12 @@ PSO收敛速度 & $<20$ 次迭代 & 梯度法约需50+次 & 全局搜索能力 \
   \item \textbf{方位分辨率依赖旋转}：ISAR方位分辨率取决于目标旋转角速度，当目标运动平稳（$\omega$接近0）时成像质量显著退化。
 \end{enumerate}
 
-\subsection{后续研究计划}
-
-\begin{enumerate}
-  \item \textbf{阶段一（近期）}：引入真实5G信道采集数据，完成实测回波预处理与成像验证；在不同SNR条件下系统评估算法性能；
-  \item \textbf{阶段二（中期）}：扩充数据集规模至5000+样本，引入旋转、平移、噪声注入等数据增强策略，系统评估各分类器的泛化能力与计算效率；
-  \item \textbf{阶段三（中长期）}：实现多基站协同定位系统联调，结合实际基站部署场景评估TDOA/AOA融合精度，优化GDOP；
-  \item \textbf{长期目标}：凝练成果，投稿信号处理或雷达领域相关期刊/会议论文。
-\end{enumerate}
-
 % ════════════════════════════════════════════════════════
 \section{结语}
 
 本项目以5G NR FR2毫米波信号为切入点，系统性地构建了无人机ISAR成像感知的完整算法框架。从LFM信号模型与匹配滤波的理论推导出发，经距离压缩、运动补偿、PSO自聚焦优化，实现了高分辨率ISAR二维成像；在此基础上，结合卡尔曼滤波跟踪、多基站协同定位与机器学习目标分类，构建了"检测--成像--跟踪--识别"四位一体的感知系统。系统提供MATLAB与Python完整双语实现，在仿真层面验证了各核心算法的有效性。
 
-下一步将重点向实测数据验证与多基站系统联调两个方向推进，为5G通感一体化低空安防应用提供技术储备。
+本项目为5G通感一体化低空安防应用提供了完整的算法框架与仿真验证基础。
 
 % ════════════════════════════════════════════════════════
 \newpage

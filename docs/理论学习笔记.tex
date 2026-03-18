@@ -1,0 +1,733 @@
+% !TEX program = latexmk
+% !TEX options = -xelatex -synctex=1 -interaction=nonstopmode -file-line-error "%DOC%"
+%% 理论学习笔记 - 基于5G基站的无人机成像感知系统
+%% 本地阅读用，不推送
+%% 编译命令：xelatex 理论学习笔记.tex
+
+\documentclass[12pt, a4paper]{article}
+
+%% ===== 字体与中文 =====
+\usepackage{fontspec}
+\usepackage[UTF8, zihao=false]{ctex}
+\setmainfont{Times New Roman}
+\setCJKmainfont[BoldFont=SimHei, ItalicFont=KaiTi]{SimSun}
+
+%% ===== 数学 =====
+\usepackage{amsmath, amssymb, amsthm}
+
+%% ===== 图表 =====
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+
+%% ===== 代码 =====
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{teal},
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  breaklines=true,
+  breakatwhitespace=false,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  showspaces=false,
+  tabsize=4,
+}
+
+%% ===== 页面布局 =====
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+%% ===== 超链接与目录 =====
+\usepackage[hidelinks, bookmarksnumbered]{hyperref}
+\usepackage{bookmark}
+
+%% ===== 彩色方框（重点说明用） =====
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable}
+
+\newtcolorbox{keybox}[1][]{
+  colback=blue!5, colframe=blue!40,
+  fonttitle=\bfseries, title={#1},
+  breakable
+}
+\newtcolorbox{intubox}[1][直觉理解]{
+  colback=green!5, colframe=green!50!black,
+  fonttitle=\bfseries, title={#1},
+  breakable
+}
+\newtcolorbox{warnbox}[1][注意]{
+  colback=orange!8, colframe=orange!70,
+  fonttitle=\bfseries, title={#1},
+  breakable
+}
+
+%% ===== 页眉页脚 =====
+\usepackage{fancyhdr}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\leftmark}
+\fancyhead[R]{\small 理论学习笔记}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%% ===== 标题样式 =====
+\usepackage{titlesec}
+\titleformat{\section}[block]{\large\bfseries}{第\,\thesection\,章\quad}{0pt}{}[\vspace{0.2em}\hrule]
+\titleformat{\subsection}[hang]{\normalsize\bfseries}{\thesubsection\quad}{0pt}{}
+
+%% ===== 自定义命令 =====
+\newcommand{\mat}[1]{\boldsymbol{#1}}
+\newcommand{\eg}{例如}
+
+%% ===== 文档信息 =====
+\title{
+  \vspace{-1cm}
+  {\Large\bfseries 基于5G基站的无人机成像感知系统}\\[0.5em]
+  {\large 理论学习笔记}\\[0.5em]
+  {\normalsize\color{gray} 新手向 · 本地阅读 · 包含直觉解释与公式推导}
+}
+\author{}
+\date{\today}
+
+%%==========================================================
+\begin{document}
+%%==========================================================
+
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+本文档整理了本项目涉及的全部核心理论，包括ISAR成像、PSO粒子群优化、卡尔曼滤波轨迹跟踪、多基站协同定位和深度学习分类。每个模块均从"为什么"出发，给出直觉理解，再引入数学公式，适合完全没有基础的读者阅读。
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%%==========================================================
+\section{项目整体架构}
+%%==========================================================
+
+\subsection{要解决什么问题？}
+
+想象一架无人机在城市上空飞行，我们需要：
+\begin{enumerate}
+  \item 发现它（检测）
+  \item 拍出它的轮廓（成像）
+  \item 预测它下一秒在哪（跟踪）
+  \item 判断它是什么型号（分类）
+\end{enumerate}
+
+传统方案靠摄像头，但摄像头在夜晚、雾天、远距离下效果很差。本项目的方案：把已经遍布城市的 \textbf{5G基站变成雷达}——基站发射毫米波信号，无人机反射回波，通过分析回波完成上述4项任务。
+
+\subsection{为什么选5G毫米波？}
+
+雷达的核心指标之一是\textbf{距离分辨率}，即能区分两个靠近目标的最小间距：
+\begin{equation}
+  \Delta r = \frac{c}{2B}
+\end{equation}
+其中 $c = 3\times10^8$ m/s 是光速，$B$ 是信号带宽。5G NR FR2（28 GHz频段）提供 400 MHz 带宽，代入得：
+\begin{equation}
+  \Delta r = \frac{3\times10^8}{2 \times 400\times10^6} = 0.375 \text{ m} = \mathbf{37.5 \text{ cm}}
+\end{equation}
+这足以分辨无人机的机臂结构。传统手机基站（<100 MHz带宽）分辨率只有1.5 m以上，远不够用。
+
+\subsection{系统数据流}
+
+\begin{center}
+\begin{tabular}{c}
+5G基站信号（$f_c=28$ GHz，$B=400$ MHz，PRF$=1000$ Hz）\\
+$\downarrow$\\
+回波数据生成（旋转目标模型，4个散射点，SNR$=10$ dB）\\
+$\downarrow$\\
+距离压缩（匹配滤波） $\longrightarrow$ ISAR二维图像\\
+$\downarrow$\\
+PSO优化（自动对焦，最小化图像熵）\\
+$\downarrow$\\
+卡尔曼滤波跟踪（平滑轨迹，RMSE降低约45\%）\\
+$\downarrow$\\
+多基站定位（TDOA/AOA/RSS，三维坐标）\\
+$\downarrow$\\
+深度学习分类（SVM / CNN / ResNet，5类目标识别）
+\end{tabular}
+\end{center}
+
+%%==========================================================
+\section{模块一：ISAR成像}
+%%==========================================================
+
+\subsection{SAR vs ISAR：一字之差的区别}
+
+\begin{intubox}[直觉理解]
+\textbf{普通SAR（合成孔径雷达）}：雷达自身移动（如飞机、卫星），利用运动合成等效大天线，目标不动。
+
+\textbf{ISAR（逆合成孔径雷达）}："逆"字的意思是——这次\textbf{雷达不动，目标转动}。无人机在旋转，从多个角度反射信号，等效于雷达绕着无人机转了一圈，从而"看到"无人机的二维形状。
+\end{intubox}
+
+\subsection{雷达参数设置}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llll}
+\toprule
+参数 & 符号 & 值 & 含义 \\
+\midrule
+载波频率 & $f_c$ & 28 GHz & 5G NR FR2毫米波 \\
+信号带宽 & $B$ & 400 MHz & 决定距离分辨率 \\
+脉冲宽度 & $T_p$ & 1 $\mu$s & chirp持续时间 \\
+采样率 & $f_s$ & 800 MHz & $f_s = 2B$（奈奎斯特定理）\\
+调频率 & $K_r$ & $4\times10^{14}$ Hz/s & $K_r = B/T_p$ \\
+脉冲重复频率 & PRF & 1000 Hz & 每秒发射1000个脉冲 \\
+观测时间 & $T_\text{obs}$ & 2 s & 积累2000个脉冲 \\
+初始距离 & $R_0$ & 1000 m & 无人机与基站距离 \\
+旋转角速度 & $\omega$ & 0.5 rad/s & 无人机自旋速度 \\
+\bottomrule
+\end{tabular}
+\caption{仿真参数设置}
+\end{table}
+
+\subsection{目标模型：十字形无人机}
+
+用4个\textbf{散射中心}（点目标）模拟无人机：
+
+\begin{equation}
+\text{散射点坐标：}
+\begin{pmatrix} 0 \\ 0 \\ 0 \end{pmatrix},\;
+\begin{pmatrix} 0.3 \\ 0 \\ 0 \end{pmatrix},\;
+\begin{pmatrix} -0.3 \\ 0 \\ 0 \end{pmatrix},\;
+\begin{pmatrix} 0 \\ 0.25 \\ 0 \end{pmatrix}
+\end{equation}
+
+俯视图如下（单位：m）：
+\begin{center}
+\texttt{
+(0, 0.25) \\
+\quad\quad | \\
+(-0.3,0)---\!(0,0)\!---(0.3,0)
+}
+\end{center}
+现实中，无人机螺旋桨、机身等不同位置对雷达信号的反射强度不同，简化为若干点来建模，称为\textbf{散射中心模型}。
+
+\subsection{发射信号：线性调频（LFM/chirp）}
+
+雷达不发射单频正弦波，而是发射\textbf{线性调频脉冲}，其瞬时频率随时间线性变化（像一声从低到高的啸叫）：
+
+\begin{equation}
+s_\text{tx}(t) = \exp\!\left(j\pi K_r t^2\right), \quad 0 \le t \le T_p
+\end{equation}
+
+\begin{intubox}[为什么用chirp而不是单频？]
+单频脉冲的时间分辨率受脉宽限制，脉冲越短分辨率越高，但能量也越低（信噪比差）。
+
+Chirp的巧妙之处：发射宽脉冲（$T_p=1\,\mu\text{s}$，能量高），接收后用\textbf{匹配滤波压缩}成尖锐的窄峰（等效脉宽 $\approx 1/B$），兼顾能量与分辨率。\\
+压缩比（时间带宽积）$= B \cdot T_p = 400\times10^6 \times 1\times10^{-6} = \mathbf{400}$
+\end{intubox}
+
+\subsection{回波信号生成}
+
+\subsubsection{旋转运动模型}
+
+设慢时间为 $t_m$（第 $m$ 个脉冲时刻），无人机旋转角度 $\theta(t_m) = \omega t_m$。第 $k$ 个散射点的坐标经过旋转后变为：
+
+\begin{align}
+x_k' &= x_k \cos\theta - y_k \sin\theta \\
+y_k' &= x_k \sin\theta + y_k \cos\theta
+\end{align}
+
+该散射点到基站的瞬时距离为：
+\begin{equation}
+R_k(t_m) = R_0 + y_k'(t_m)
+\end{equation}
+（$y$方向为视线方向，$R_0$为参考距离）
+
+\subsubsection{接收回波信号}
+
+第 $k$ 个散射点对第 $m$ 个脉冲的贡献：
+
+\begin{equation}
+s_k(t, t_m) = \exp\!\left(j\pi K_r(t - \tau_k)^2\right) \cdot \exp\!\left(-j\frac{4\pi f_c R_k(t_m)}{c}\right)
+\end{equation}
+
+其中 $\tau_k = 2(R_k - R_0)/c$ 是\textbf{相对时延}（已减去固定传播延迟 $2R_0/c$）。
+
+\begin{warnbox}[为什么必须用相对时延？]
+绝对时延 $= 2R_0/c = 2\times1000/(3\times10^8) \approx 6.67\,\mu$s，而快时间窗口只有 $T_p = 1\,\mu$s。$6.67 \gg 1$，信号完全在窗口之外，全部为零！
+
+解决方案：在生成回波时减去已知的固定延迟 $2R_0/c$，只保留散射点位移引起的相对延迟：
+\[
+\tau_k = \frac{2(R_k - R_0)}{c} = \frac{2y_k'}{c} \approx \pm 2\text{ ns} \ll 1\,\mu\text{s} \quad \checkmark
+\]
+\end{warnbox}
+
+总回波 = 4个散射点叠加 + 高斯白噪声（SNR = 10 dB）：
+\begin{equation}
+s(t, t_m) = \sum_{k=1}^{4} s_k(t, t_m) + n(t, t_m)
+\end{equation}
+
+\subsection{距离压缩：匹配滤波}
+
+\textbf{目的}：把弥散在时间轴上的chirp压缩成尖锐的脉冲峰，以区分不同距离处的散射点。
+
+\textbf{方法}：接收信号与参考信号的\textbf{复共轭翻转版}做卷积：
+\begin{equation}
+h(t) = s_\text{tx}^*(-t) = \exp\!\left(-j\pi K_r t^2\right)
+\end{equation}
+\begin{equation}
+s_\text{rc}(t, t_m) = s(t, t_m) * h(t) = \int s(\tau, t_m)\, h(t-\tau)\,d\tau
+\end{equation}
+
+压缩后，每个散射点在距离维产生一个 sinc 形状的峰，半功率宽度 $\approx 1/B = 37.5$ cm，即距离分辨率。
+
+\begin{intubox}[直觉理解]
+把匹配滤波想象成"对暗号"：发射了一个特定的chirp序列，接收端用同样的序列去"比对"（相关运算），如果回波里有这个序列（说明有目标反射），就会产生一个大的响应；没有则输出接近零。
+\end{intubox}
+
+\subsection{方位压缩：对慢时间做FFT}
+
+距离压缩后，数据矩阵 $s_\text{rc}(t, t_m)$ 的每一行（固定距离单元）随慢时间 $t_m$ 变化的相位是：
+\begin{equation}
+\phi(t_m) = -\frac{4\pi f_c R_k(t_m)}{c} = -\frac{4\pi f_c (R_0 + y_k'(t_m))}{c}
+\end{equation}
+
+由于 $y_k'(t_m) = x_k\sin\omega t_m + y_k\cos\omega t_m$ 随 $t_m$ 变化，相位也在变化，变化速率就是\textbf{多普勒频率}：
+\begin{equation}
+f_d = \frac{1}{2\pi}\frac{d\phi}{dt_m} = \frac{2\omega}{\lambda}(x_k\cos\omega t_m - y_k\sin\omega t_m)
+\end{equation}
+
+对慢时间维做FFT，不同多普勒频率（即不同旋转位置）的散射点被分开，得到\textbf{距离-多普勒二维图像}，即ISAR图像：
+\begin{equation}
+I(t, f_d) = \mathcal{F}_{t_m}\!\left[s_\text{rc}(t, t_m)\right]
+\end{equation}
+
+通常用 dB 刻度显示：
+\begin{equation}
+I_\text{dB} = 20\log_{10}\!\left(\frac{|I|}{|I|_\text{max}} + \varepsilon\right), \quad \text{显示范围} [-40, 0] \text{ dB}
+\end{equation}
+
+\subsection{分辨率总结}
+
+\begin{align}
+\text{距离分辨率：}\quad & \Delta r = \frac{c}{2B} = \frac{3\times10^8}{2\times400\times10^6} = 0.375\text{ m} \\[4pt]
+\text{方位分辨率：}\quad & \Delta a = \frac{\lambda}{2\omega T_\text{obs}} = \frac{c/f_c}{2\omega T_\text{obs}} \approx 0.375\text{ m}
+\end{align}
+
+两者相近，说明在距离和方位方向上都能分辨37.5 cm的细节。
+
+%%==========================================================
+\section{模块二：PSO粒子群优化}
+%%==========================================================
+
+\subsection{为什么需要优化？}
+
+ISAR成像的核心假设是：观测期间无人机做\textbf{匀速旋转}。但实际中无人机的运动包含非匀速成分（加减速、抖动），引入额外相位误差：
+\begin{equation}
+\phi_\text{error}(t_m) = \alpha \cdot t_m + \beta \cdot t_m^2 + \cdots
+\end{equation}
+这会使图像模糊（散焦）。我们需要找到最优的 $\alpha,\,\beta$ 来补偿这个误差，使图像重新聚焦。
+
+\subsection{为什么是优化问题？}
+
+目标：找到 $(\alpha^*, \beta^*)$ 使图像最清晰。
+
+"最清晰"的量化指标：\textbf{图像熵（Image Entropy）}。香农熵原本用来衡量信息的不确定性，用在图像上：
+\begin{equation}
+H = -\sum_{i,j} p_{ij} \ln p_{ij}, \quad p_{ij} = \frac{|I(i,j)|^2}{\sum_{i,j}|I(i,j)|^2}
+\end{equation}
+
+\begin{intubox}[熵与清晰度的关系]
+\begin{itemize}
+  \item \textbf{清晰图像}：能量集中在几个亮点，大多数像素接近0。$p_{ij}$ 的分布很"尖锐"，熵\textbf{小}。
+  \item \textbf{模糊图像}：能量弥散开来，每个像素都差不多。$p_{ij}$ 的分布很"平坦"，熵\textbf{大}。
+\end{itemize}
+因此：\textbf{最小化熵 = 最大化清晰度}。这是ISAR自聚焦的核心思路。
+\end{intubox}
+
+优化问题写成：
+\begin{equation}
+(\alpha^*, \beta^*) = \arg\min_{\alpha,\beta} H\!\left(\mathcal{F}_{t_m}\!\left[s_\text{rc}(t, t_m) \cdot e^{-j(\alpha t_m + \beta t_m^2)}\right]\right)
+\end{equation}
+
+\subsection{为什么选PSO而不是梯度下降？}
+
+图像熵对 $(\alpha, \beta)$ 的函数关系复杂，可能存在多个局部极小值。梯度下降容易陷入局部最优，而PSO通过多粒子并行搜索，对全局最优的搜索能力更强。
+
+\subsection{PSO算法原理}
+
+\textbf{灵感}：模拟鸟群觅食。每只鸟（粒子）知道：
+\begin{itemize}
+  \item 自己历史上找到的最好位置（个人最优 $\mat{p}_\text{best}^{(i)}$）
+  \item 整个鸟群找到的最好位置（全局最优 $\mat{g}_\text{best}$）
+\end{itemize}
+每步更新速度和位置：
+
+\begin{keybox}[PSO核心迭代公式]
+\begin{align}
+\mat{v}^{(i)}_{k+1} &= \underbrace{w \cdot \mat{v}^{(i)}_k}_{\text{惯性项}} + \underbrace{c_1 r_1 \left(\mat{p}_\text{best}^{(i)} - \mat{x}^{(i)}_k\right)}_{\text{认知项（个人经验）}} + \underbrace{c_2 r_2 \left(\mat{g}_\text{best} - \mat{x}^{(i)}_k\right)}_{\text{社会项（群体智慧）}} \\[6pt]
+\mat{x}^{(i)}_{k+1} &= \mat{x}^{(i)}_k + \mat{v}^{(i)}_{k+1}
+\end{align}
+其中 $r_1, r_2 \sim \mathcal{U}(0,1)$ 是随机数，引入随机性防止过早收敛。
+\end{keybox}
+
+\textbf{参数设置}：
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+参数 & 值 & 含义 \\
+\midrule
+粒子数 $N$ & 20 & 同时搜索的粒子数 \\
+最大迭代次数 & 30 & 迭代30轮后停止 \\
+惯性权重 $w$ & 0.7 & 继续原方向的倾向（偏小则收敛快，偏大则探索范围广）\\
+个体学习因子 $c_1$ & 1.5 & 向个人历史最优靠近的强度 \\
+社会学习因子 $c_2$ & 1.5 & 向全群最优靠近的强度 \\
+搜索范围 $\alpha$ & $[-0.1,\,0.1]$ & 一阶相位误差补偿范围 \\
+搜索范围 $\beta$ & $[-0.01,\,0.01]$ & 二阶相位误差补偿范围 \\
+\bottomrule
+\end{tabular}
+\caption{PSO参数设置}
+\end{table}
+
+\textbf{优化效果}：迭代30次后收敛，图像熵降低约35\%，成像聚焦度显著提升。正常的收敛曲线应为\textbf{单调递减}（每轮找到更优解，熵只会降低不会升高）。
+
+\subsection{PSO算法流程}
+
+\begin{enumerate}
+  \item \textbf{初始化}：在搜索空间内随机放置20个粒子，速度初始化为0
+  \item \textbf{计算适应度}：每个粒子对应一组参数 $(\alpha, \beta)$，代入计算图像熵
+  \item \textbf{更新个人/全局最优}：如果当前适应度比历史最优更好，更新记录
+  \item \textbf{更新速度和位置}：按上述公式计算
+  \item \textbf{边界约束}：如果粒子飞出搜索范围，拉回边界
+  \item \textbf{重复2-5}，直到达到最大迭代次数
+  \item \textbf{输出}全局最优位置 $(\alpha^*, \beta^*)$，应用于图像相位补偿
+\end{enumerate}
+
+%%==========================================================
+\section{模块三：卡尔曼滤波轨迹跟踪}
+%%==========================================================
+
+\subsection{为什么需要卡尔曼滤波？}
+
+雷达每次测量都有噪声：真实位置是 $(x_0, y_0)$，测量结果是 $(x_0 + \epsilon_x,\, y_0 + \epsilon_y)$，误差 $\epsilon$ 的标准差约为5 m。如果直接用测量值，轨迹会抖动得很厉害。
+
+\textbf{卡尔曼滤波的核心思想}：
+\begin{itemize}
+  \item 用运动模型\textbf{预测}下一时刻位置（"我认为它应该在这里"）
+  \item 用新的测量值\textbf{修正}预测（"雷达说它在那里"）
+  \item 根据各自的\textbf{不确定度}，按比例加权融合两个信息
+\end{itemize}
+
+\subsection{状态空间模型}
+
+选择\textbf{匀速运动模型}，状态向量包含位置和速度：
+\begin{equation}
+\mat{x}_k = \begin{pmatrix} x \\ y \\ v_x \\ v_y \end{pmatrix}_k
+\end{equation}
+
+\textbf{状态转移矩阵}（描述如何从 $k$ 时刻推算 $k+1$ 时刻）：
+\begin{equation}
+\mat{F} = \begin{pmatrix} 1 & 0 & \Delta t & 0 \\ 0 & 1 & 0 & \Delta t \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix}
+\end{equation}
+即：$x_{k+1} = x_k + v_x \Delta t$，$v_{x,k+1} = v_{x,k}$（假设速度不变）。
+
+\textbf{测量矩阵}（雷达只能测位置，不能直接测速度）：
+\begin{equation}
+\mat{H} = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \end{pmatrix}
+\end{equation}
+
+\subsection{卡尔曼滤波两步骤}
+
+\begin{keybox}[预测步（Predict）]
+\begin{align}
+\hat{\mat{x}}_{k|k-1} &= \mat{F}\hat{\mat{x}}_{k-1|k-1} \tag{状态预测}\\
+\mat{P}_{k|k-1} &= \mat{F}\mat{P}_{k-1|k-1}\mat{F}^\top + \mat{Q} \tag{协方差预测}
+\end{align}
+$\mat{Q}$：过程噪声协方差，反映运动模型的不确定性（无人机可能加速、转弯）。
+\end{keybox}
+
+\begin{keybox}[更新步（Update）]
+\begin{align}
+\mat{K}_k &= \mat{P}_{k|k-1}\mat{H}^\top \left(\mat{H}\mat{P}_{k|k-1}\mat{H}^\top + \mat{R}\right)^{-1} \tag{卡尔曼增益}\\
+\hat{\mat{x}}_{k|k} &= \hat{\mat{x}}_{k|k-1} + \mat{K}_k\left(\mat{z}_k - \mat{H}\hat{\mat{x}}_{k|k-1}\right) \tag{状态更新}\\
+\mat{P}_{k|k} &= \left(\mat{I} - \mat{K}_k\mat{H}\right)\mat{P}_{k|k-1} \tag{协方差更新}
+\end{align}
+$\mat{R}$：测量噪声协方差，反映雷达测量的不确定性。$\mat{z}_k$：本轮实际测量值。
+\end{keybox}
+
+\subsection{卡尔曼增益的直觉解释}
+
+卡尔曼增益 $\mat{K}$ 是关键量，它决定了"信任预测还是信任测量"：
+
+\begin{equation}
+\mat{K} = \underbrace{\mat{P}_{k|k-1}\mat{H}^\top}_{\text{预测不确定度}} \cdot \left(\underbrace{\mat{H}\mat{P}_{k|k-1}\mat{H}^\top + \mat{R}}_{\text{总不确定度}}\right)^{-1}
+\end{equation}
+
+\begin{intubox}[数值例子（标量简化）]
+设预测不确定度 $P = 10\text{ m}^2$，测量噪声 $R = 25\text{ m}^2$：
+\[ K = \frac{10}{10 + 25} \approx 0.29 \]
+\[ \hat{x}_\text{new} = \hat{x}_\text{pred} + 0.29 \times (z - \hat{x}_\text{pred}) \]
+即：29\% 信任测量值，71\% 信任预测值。
+
+若测量特别准（$R \to 0$）则 $K \to 1$（完全相信测量）；若预测特别准（$P \to 0$）则 $K \to 0$（完全相信预测）。
+\end{intubox}
+
+\subsection{参数设置与效果}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+参数 & 值 & 含义 \\
+\midrule
+$\Delta t$ & 0.1 s & 采样间隔（PRF$=10$ Hz等效）\\
+$\mat{Q}$ & $\text{diag}(0.1,\,0.1,\,0.5,\,0.5)$ & 位置不确定$\ll$速度不确定（匀速假设较强）\\
+$\mat{R}$ & $25\mat{I}_2$ & 测量标准差约5 m（$\sigma^2=25$）\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{性能结果}：
+\begin{itemize}
+  \item 原始测量RMSE：约 7 m
+  \item 卡尔曼滤波后RMSE：约 3.8 m
+  \item 精度提升：约 \textbf{45\%}
+\end{itemize}
+
+RMSE（均方根误差）定义为：
+\begin{equation}
+\text{RMSE} = \sqrt{\frac{1}{N}\sum_{k=1}^{N}\left\|\hat{\mat{x}}_k - \mat{x}_k^\text{true}\right\|^2}
+\end{equation}
+
+%%==========================================================
+\section{模块四：多基站协同定位}
+%%==========================================================
+
+\subsection{基站布局}
+
+使用4个基站形成\textbf{四面体}结构，保证三维空间的良好覆盖：
+\begin{equation}
+\text{基站坐标：}
+\begin{pmatrix}0\\0\\0\end{pmatrix},\;
+\begin{pmatrix}1000\\0\\0\end{pmatrix},\;
+\begin{pmatrix}500\\866\\0\end{pmatrix},\;
+\begin{pmatrix}500\\289\\816\end{pmatrix}
+\text{ (m)}
+\end{equation}
+
+\subsection{方法一：TDOA时差定位}
+
+\textbf{原理}：信号从无人机到不同基站的到达时间不同，时间差 $\tau_{i1} = (d_i - d_1)/c$ 确定了目标在一个双曲面上。多个双曲面的交点就是目标位置。
+
+以基站1为参考，对第 $i$ 个基站建立方程：
+\begin{equation}
+\|\mat{p} - \mat{s}_i\| - \|\mat{p} - \mat{s}_1\| = c\tau_{i1}, \quad i = 2,3,4
+\end{equation}
+
+线性化后得到最小二乘方程组 $\mat{A}\mat{p} \approx \mat{b}$，初始解：
+\begin{equation}
+\hat{\mat{p}} = (\mat{A}^\top\mat{A})^{-1}\mat{A}^\top\mat{b}
+\end{equation}
+再用非线性优化（梯度下降）精化。
+
+\subsection{方法二：AOA角度定位}
+
+每个基站测量无人机的方位角 $\phi_i$ 和仰角 $\theta_i$，给出一条方向向量 $\hat{\mat{d}}_i$。目标位置使所有射线到目标的总距离最小：
+\begin{equation}
+\hat{\mat{p}} = \arg\min_{\mat{p}} \sum_{i=1}^{4} \left\|(\mat{p} - \mat{s}_i) - \left[(\mat{p}-\mat{s}_i)\cdot\hat{\mat{d}}_i\right]\hat{\mat{d}}_i\right\|^2
+\end{equation}
+
+\subsection{方法三：RSS信号强度定位}
+
+\textbf{路径损耗模型}：信号越远越弱，接收功率（RSS）与距离关系为：
+\begin{equation}
+\text{RSS}_i = P_0 - 10n\log_{10}\!\left(\frac{d_i}{d_0}\right)
+\end{equation}
+反推距离：$d_i = d_0 \cdot 10^{(P_0 - \text{RSS}_i)/(10n)}$，再用三边定位法求坐标。
+
+\subsection{GDOP几何精度衰减因子}
+
+GDOP（Geometric Dilution of Precision）衡量基站几何布局对定位精度的影响。基站布局越好（如四面体），GDOP越接近1，测量误差被放大越少。
+
+\begin{equation}
+\text{GDOP} = \sqrt{\text{tr}\left[(\mat{G}^\top\mat{G})^{-1}\right]_{1:3,1:3}}
+\end{equation}
+其中 $\mat{G}$ 是由各基站方向余弦构成的几何矩阵。
+
+%%==========================================================
+\section{模块五：机器学习目标分类}
+%%==========================================================
+
+\subsection{任务说明}
+
+输入：一张ISAR图像（128×128像素）。\\
+输出：5类无人机目标之一。
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+类别 & 名称 & ISAR图像特征 \\
+\midrule
+0 & 小型四旋翼 & 中心集中的高斯亮斑 \\
+1 & 中型无人机 & 方形亮区 \\
+2 & 大型无人机 & 大方形 + 横线 \\
+3 & 固定翼 & 十字形（横翼 + 垂尾）\\
+4 & 旋翼直升机 & 4个对称亮斑 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{方案一：SVM分类（MATLAB）}
+
+流程：图像 $\to$ 提取统计特征 $\to$ SVM分类。
+
+提取的特征向量 $\mat{f} \in \mathbb{R}^7$（或$\mathbb{R}^9$）包括：
+\begin{itemize}
+  \item 均值、标准差、最大值、最小值、方差（5维统计特征）
+  \item 梯度能量、水平梯度（2维纹理特征）
+\end{itemize}
+
+SVM通过寻找\textbf{最大间隔超平面}来分类，多类问题用ECOC（Error-Correcting Output Codes）框架。
+
+\subsection{方案二：SimpleCNN（Python/PyTorch）}
+
+三层卷积网络，数据维度变化：
+
+\begin{equation*}
+(N,3,128,128) \xrightarrow{\text{Conv1+Pool}} (N,32,64,64) \xrightarrow{\text{Conv2+Pool}} (N,64,32,32) \xrightarrow{\text{Conv3+Pool}} (N,128,16,16)
+\end{equation*}
+\begin{equation*}
+\xrightarrow{\text{Flatten}} (N, 32768) \xrightarrow{\text{FC1}} (N, 512) \xrightarrow{\text{FC2}} (N, 5)
+\end{equation*}
+
+每个卷积块包含：卷积层（提取局部特征）$\to$ 批归一化（加速训练）$\to$ ReLU激活（引入非线性）$\to$ 最大池化（降低分辨率，扩大感受野）。
+
+\subsection{方案三：ResNet迁移学习}
+
+ResNet-18在ImageNet的140万张图片上学到了丰富的通用视觉特征（边缘、纹理、形状等）。只需将最后一层（原1000类）替换为5类全连接层，就能把这些知识迁移到ISAR图像：
+
+\begin{equation}
+\text{输出} = \underbrace{\text{ResNet-18特征提取}}_{\text{预训练，可冻结}} \longrightarrow \underbrace{\text{Linear}(512, 5)}_{\text{重新训练}}
+\end{equation}
+
+\textbf{迁移学习的意义}：即使ISAR数据量很少（仅1000张），也能获得较好的分类效果；从头训练同样的网络则容易过拟合。
+
+\subsection{训练流程与优化}
+
+\textbf{损失函数}：交叉熵（Cross-Entropy Loss），适用于多分类：
+\begin{equation}
+\mathcal{L} = -\sum_{c=1}^{5} y_c \ln\hat{y}_c
+\end{equation}
+其中 $y_c$ 是真实标签（one-hot），$\hat{y}_c$ 是模型预测概率（Softmax输出）。
+
+\textbf{优化器}：Adam，结合了动量和自适应学习率：
+\begin{equation}
+\theta_{t+1} = \theta_t - \frac{\eta}{\sqrt{\hat{v}_t}+\varepsilon}\hat{m}_t
+\end{equation}
+初始学习率 $\eta = 0.001$，每10个epoch衰减为原来的1/10。
+
+\subsection{性能评估：混淆矩阵}
+
+混淆矩阵 $\mat{C}$ 中，$C_{ij}$ 表示真实类别为 $i$、被预测为 $j$ 的样本数。
+\begin{itemize}
+  \item \textbf{对角线元素}：正确分类的数量（越大越好）
+  \item \textbf{非对角线元素}：误分类数量（越小越好）
+\end{itemize}
+
+各类的精确率、召回率和F1分数：
+\begin{equation}
+P_i = \frac{C_{ii}}{\sum_j C_{ji}}, \quad R_i = \frac{C_{ii}}{\sum_j C_{ij}}, \quad F1_i = \frac{2P_i R_i}{P_i + R_i}
+\end{equation}
+
+%%==========================================================
+\section{MATLAB与Python关键语法对比}
+%%==========================================================
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+操作 & MATLAB & Python (NumPy) \\
+\midrule
+索引起始 & 1 & 0 \\
+矩阵大小 & \texttt{size(A)} & \texttt{A.shape} \\
+元素乘法 & \texttt{A .* B} & \texttt{A * B} \\
+矩阵乘法 & \texttt{A * B} & \texttt{A @ B} \\
+生成序列 & \texttt{0:0.1:1}（含1）& \texttt{np.arange(0,1,0.1)}（不含1）\\
+复数单位 & \texttt{1j} & \texttt{1j} \\
+FFT（列方向）& \texttt{fft(data,[],2)} & \texttt{np.fft.fft(data, axis=1)} \\
+FFT移频 & \texttt{fftshift(X,2)} & \texttt{np.fft.fftshift(X, axes=1)} \\
+翻转数组 & \texttt{fliplr(x)} & \texttt{x[::-1]} \\
+取绝对值 & \texttt{abs(X)} & \texttt{np.abs(X)} \\
+对数 & \texttt{log10(X)} & \texttt{np.log10(X)} \\
+\bottomrule
+\end{tabular}
+\caption{MATLAB与Python常用操作对比}
+\end{table}
+
+%%==========================================================
+\section{常见问题与解答}
+%%==========================================================
+
+\paragraph{Q1：为什么ISAR图像的纵轴叫"多普勒"而不是"方位"？}
+在SAR里，飞机移动产生的相位变化直接对应方位角，所以叫方位轴。在ISAR里，目标旋转产生的是\textbf{多普勒频率}（转速越快，多普勒越大），通过多普勒和旋转半径的关系可以换算成方位，但原始轴叫多普勒更准确。
+
+\paragraph{Q2：PSO的20个粒子够用吗？}
+对于二维优化问题（$\alpha, \beta$），20个粒子完全够用。粒子数需要随优化维度增加。经验规则：维度为 $d$ 时，粒子数约取 $10d \sim 20d$。
+
+\paragraph{Q3：卡尔曼滤波假设匀速，无人机变速怎么办？}
+\begin{itemize}
+  \item 短期：过程噪声 $\mat{Q}$ 不为零，允许速度小幅随机变化，近似处理加速
+  \item 中期：把加速度也加入状态向量：$\mat{x} = [x, y, v_x, v_y, a_x, a_y]^\top$
+  \item 最优：使用\textbf{交互多模型（IMM）滤波器}，同时运行多个运动模型（匀速、匀加速、转弯），自动切换
+\end{itemize}
+
+\paragraph{Q4：混淆矩阵准确率100\%正常吗？}
+在合成数据上可能出现，因为各类的图像模式差异极大（高斯点 vs 方块 vs 十字），对分类器是"easy case"。真实ISAR数据中，各类目标的散射特征有重叠，准确率通常在70\%--90\%之间。
+
+\paragraph{Q5：分辨率能再提升吗？}
+\begin{itemize}
+  \item 距离分辨率：增大带宽 $B$（但受5G硬件限制）
+  \item 方位分辨率：增大观测时间 $T_\text{obs}$ 或旋转速度 $\omega$（但观测时间受目标机动性限制）
+  \item 工程方案：通过\textbf{超分辨率算法}（MUSIC、ESPRIT、压缩感知）在不增加硬件成本的前提下提升分辨率
+\end{itemize}
+
+%%==========================================================
+\section*{总结}
+\addcontentsline{toc}{section}{总结}
+%%==========================================================
+
+\begin{keybox}[技术栈一览]
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+层次 & 核心技术 & 关键公式/指标 \\
+\midrule
+信号处理层 & LFM信号 + 匹配滤波 + FFT & $\Delta r = c/(2B) = 37.5\text{ cm}$ \\
+优化层 & PSO粒子群，最小化图像熵 & 熵降低约35\% \\
+跟踪层 & 卡尔曼滤波，预测+融合 & RMSE降低约45\% \\
+定位层 & TDOA/AOA/RSS，最小二乘 & 三维坐标 \\
+识别层 & SVM + CNN/ResNet & 5类识别准确率70--90\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{keybox}
+
+\vspace{1em}
+\noindent
+核心思想：\textbf{把5G基站变成雷达，用信号处理 + 机器学习实现对无人机的全面感知}。
+
+每个模块都可以独立理解，建议按顺序掌握：ISAR成像 $\to$ PSO优化 $\to$ 卡尔曼跟踪 $\to$ 多站定位 $\to$ 深度学习分类。
+
+\end{document}
