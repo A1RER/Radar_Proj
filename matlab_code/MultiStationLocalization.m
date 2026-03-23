@@ -83,17 +83,17 @@ classdef MultiStationLocalization < handle
         end
         
         function pos = localizeAOA(obj, angles)
-            % AOA定位（到达角）
+            % AOA定位（到达角）— 解析解
             % angles: Nx2矩阵 [azimuth, elevation]（度）
-            
+
             fprintf('AOA定位中...\n');
-            
+
             N = size(obj.base_stations, 1);
-            
+
             % 转换为弧度
             az = deg2rad(angles(:, 1));
             el = deg2rad(angles(:, 2));
-            
+
             % 构建方向向量
             directions = zeros(N, 3);
             for i = 1:N
@@ -103,37 +103,25 @@ classdef MultiStationLocalization < handle
                     sin(el(i))
                 ];
             end
-            
-            % 最小二乘求解
-            % 每条射线: s_i + t_i * d_i
-            % 最小化所有射线到目标点的距离
-            objective = @(p) obj.aoaObjective(p, directions);
-            p0 = mean(obj.base_stations, 1);  % 初始猜测
-            try
-                options = optimoptions('fminunc', 'Display', 'off');
-                pos = fminunc(objective, p0, options);
-            catch
-                opts = optimset('MaxIter', 500, 'Display', 'off');
-                pos = fminsearch(objective, p0, opts);
-            end
-            
-            fprintf('  估计位置: [%.2f, %.2f, %.2f]\n', pos);
-        end
-        
-        function cost = aoaObjective(obj, pos, directions)
-            % AOA目标函数
-            N = size(obj.base_stations, 1);
-            cost = 0;
-            
+
+            % 解析解：p = A \ b
+            % 其中 M_i = I - d_i * d_i' （垂直投影矩阵）
+            %      A = sum(M_i),  b = sum(M_i * s_i)
+            I3 = eye(3);
+            A = zeros(3);
+            b = zeros(3, 1);
+
             for i = 1:N
-                si = obj.base_stations(i, :);
-                di = directions(i, :);
-                
-                % 点到直线距离
-                v = pos - si;
-                dist = norm(v - dot(v, di) * di);
-                cost = cost + dist^2;
+                di = directions(i, :)';
+                si = obj.base_stations(i, :)';
+                Mi = I3 - di * di';   % 投影矩阵（对称幂等）
+                A = A + Mi;
+                b = b + Mi * si;
             end
+
+            pos = (A \ b)';
+
+            fprintf('  估计位置: [%.2f, %.2f, %.2f]\n', pos);
         end
         
         function pos = localizeRSS(obj, rss_values, path_loss_params)
