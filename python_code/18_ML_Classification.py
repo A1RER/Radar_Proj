@@ -256,7 +256,7 @@ class DroneClassifier:
             if val_acc > best_acc:
                 best_acc = val_acc
                 self.save_model('best_model.pth')
-                print(f"✓ 保存最佳模型 (Acc: {best_acc:.2f}%)")
+                print(f"[OK] Best model saved (Acc: {best_acc:.2f}%)")
         
         print("\n" + "="*50)
         print(f"训练完成！最佳验证准确率: {best_acc:.2f}%")

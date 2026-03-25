@@ -35,7 +35,13 @@
 | 文件 | 功能 | 难度 | 对应MATLAB |
 |------|------|------|-----------|
 | 11_ISAR_Python.py | ISAR成像 | ⭐⭐ | 01_ISAR_Demo.m |
+| 12_PSO.py | PSO优化 | ⭐⭐ | PSO_Optimization.m |
+| 13_Kalman.py | 卡尔曼滤波 | ⭐⭐ | Kalman_Filter.m |
+| 14_MultiStation_Localization.py | 多基站定位与粒子滤波 | ⭐⭐⭐⭐ | MultiStationLocalization.m |
+| 15_ISAR_Advanced.py | 高级ISAR（多目标/自聚焦） | ⭐⭐⭐⭐ | ISARImagingSystem.m |
+| 16_Main_System.py | 主控系统整合 | ⭐⭐⭐ | Main_System.m |
 | 18_ML_Classification.py | 深度学习分类 | ⭐⭐⭐⭐ | 19_ML_MATLAB.m |
+| 19_SVM_Classification.py | SVM/决策树/随机森林分类 | ⭐⭐⭐ | MLClassifier.m |
 
 ### 📖 **学习资源**
 | 文件 | 用途 | 何时使用 |
