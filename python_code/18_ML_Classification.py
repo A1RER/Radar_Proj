@@ -67,10 +67,10 @@ class ISARImageDataset(Dataset):
 
 class SimpleCNN(nn.Module):
     """简单的CNN分类器"""
-    
+
     def __init__(self, num_classes=5):
         super(SimpleCNN, self).__init__()
-        
+
         # 卷积层
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
@@ -78,34 +78,34 @@ class SimpleCNN(nn.Module):
         self.bn2 = nn.BatchNorm2d(64)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm2d(128)
-        
+
         # 池化层
         self.pool = nn.MaxPool2d(2, 2)
-        
+
         # 全连接层
         # 假设输入图像是 128x128
         self.fc1 = nn.Linear(128 * 16 * 16, 512)
         self.dropout = nn.Dropout(0.5)
         self.fc2 = nn.Linear(512, num_classes)
-        
+
     def forward(self, x):
         # Conv Block 1
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
-        
+
         # Conv Block 2
         x = self.pool(F.relu(self.bn2(self.conv2(x))))
-        
+
         # Conv Block 3
         x = self.pool(F.relu(self.bn3(self.conv3(x))))
-        
+
         # Flatten
         x = x.view(-1, 128 * 16 * 16)
-        
+
         # Fully Connected
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
-        
+
         return x
 
 
@@ -166,36 +166,36 @@ class DroneClassifier:
         total_loss = 0
         correct = 0
         total = 0
-        
+
         pbar = tqdm(train_loader, desc='Training')
         for images, labels in pbar:
             images = images.to(self.device)
             labels = labels.to(self.device)
-            
+
             # 前向传播
             outputs = self.model(images)
             loss = self.criterion(outputs, labels)
-            
+
             # 反向传播
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            
+
             # 统计
             total_loss += loss.item()
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
-            
+
             # 更新进度条
             pbar.set_postfix({
                 'loss': f'{loss.item():.4f}',
                 'acc': f'{100.*correct/total:.2f}%'
             })
-        
+
         avg_loss = total_loss / len(train_loader)
         accuracy = 100. * correct / total
-        
+
         return avg_loss, accuracy
     
     def validate(self, val_loader):
@@ -204,25 +204,24 @@ class DroneClassifier:
         total_loss = 0
         correct = 0
         total = 0
-        
+
         with torch.no_grad():
             for images, labels in val_loader:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-                
+
                 outputs = self.model(images)
                 loss = self.criterion(outputs, labels)
-                
+
                 total_loss += loss.item()
                 _, predicted = outputs.max(1)
 
-
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
-        
+
         avg_loss = total_loss / len(val_loader)
         accuracy = 100. * correct / total
-        
+
         return avg_loss, accuracy
     
     def train(self, train_loader, val_loader, epochs=50):
