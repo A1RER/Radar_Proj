@@ -929,6 +929,229 @@ PSO收敛速度 & $<20$ 次迭代 & 梯度法约需50+次 & 全局搜索能力 \
 \end{table}
 
 % ════════════════════════════════════════════════════════
+\section{算法对比与替代方案分析}
+\label{sec:algorithm_comparison}
+
+本节系统地梳理各核心模块所采用算法的替代方案，从原理、性能和适用场景三个维度进行对比分析，为后续算法选型和系统优化提供参考依据。
+
+\subsection{ISAR成像算法对比}
+
+\subsubsection{距离-多普勒（RD）算法}
+
+本项目采用的RD（Range-Doppler）算法是ISAR成像中最经典、最广泛使用的方法\cite{ref_isar_chen}。其核心流程为：距离压缩$\to$运动补偿$\to$方位FFT。RD算法的优点是原理清晰、计算效率高（$O(N\log N)$），且与脉冲压缩雷达体制天然匹配。但其成立的前提假设是目标做匀速旋转（小角度近似），当旋转角度较大或运动非均匀时，方位向会出现散焦。
+
+\subsubsection{极坐标格式算法（PFA）}
+
+极坐标格式算法（Polar Format Algorithm, PFA）\cite{ref_pfa}直接在频域进行二维插值，将极坐标采样的回波数据重新映射到笛卡尔坐标网格上，然后做二维IFFT成像。PFA对宽角度观测（$\Delta\theta > 10^\circ$）具有更好的聚焦性能，不需要小角度近似。但其缺点是需要精确的运动参数估计，且二维插值的计算开销较大。
+
+\subsubsection{时频分析方法}
+
+当目标运动高度非平稳时（如机动飞行），传统FFT无法正确分辨瞬时多普勒频率。基于时频分析的方法（如短时傅里叶变换STFT\cite{ref_stft_isar}、Wigner-Ville分布WVD\cite{ref_wvd}、自适应最优核时频分布AOK-TFD\cite{ref_aok}）可以同时刻画信号在时间和频率两个维度上的分布，适用于复杂机动目标。但时频分析方法存在时频分辨率互斥（不确定性原理）问题，且WVD还受交叉项干扰。
+
+\subsubsection{超分辨率方法}
+
+传统FFT的方位分辨率受限于相干积累角度（Rayleigh极限）。超分辨率谱估计方法可以突破这一限制：
+
+\begin{itemize}
+  \item \textbf{MUSIC}（多重信号分类）\cite{ref_music}：利用信号子空间与噪声子空间的正交性构建伪谱，理论上可达无限分辨率，但要求准确估计散射点个数，且对信噪比敏感；
+  \item \textbf{ESPRIT}（旋转不变技术）\cite{ref_esprit}：利用阵列的平移不变结构，通过矩阵特征分解估计频率参数，计算量低于MUSIC，但同样需要先验信号数估计；
+  \item \textbf{压缩感知（CS）}\cite{ref_cs_isar}：将稀疏信号恢复理论引入ISAR成像，利用散射点在空间域的稀疏性，以远少于Nyquist采样率的数据重建高分辨率图像。适合低PRF或短观测时间场景，但计算复杂度较高且需调节正则化参数。
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{lCCCL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 算法 &
+  \color{white}\bfseries 分辨率 &
+  \color{white}\bfseries 计算复杂度 &
+  \color{white}\bfseries 运动适应性 &
+  \color{white}\bfseries 典型应用场景 \\
+\midrule
+RD（本项目） & Rayleigh极限 & $O(N\log N)$ & 匀速旋转 & 实时处理、工程首选 \\
+\rowcolor{rowalt}
+PFA & Rayleigh极限 & $O(N^2)$ & 宽角度 & 高精度静态目标 \\
+STFT/WVD & 受窗长限制 & $O(N^2)$ & 机动目标 & 非合作目标 \\
+\rowcolor{rowalt}
+MUSIC/ESPRIT & 超Rayleigh & $O(N^3)$ & 匀速旋转 & 高SNR精密测量 \\
+压缩感知 & 超Rayleigh & $O(N^3)$级 & 稀疏约束 & 低数据量场景 \\
+\bottomrule
+\end{tabularx}
+\caption{ISAR成像算法对比}
+\label{tab:isar_comparison}
+\end{table}
+
+\subsection{自聚焦算法对比}
+
+\subsubsection{相位梯度自聚焦（PGA）}
+
+PGA（Phase Gradient Autofocus）\cite{ref_pga}是SAR/ISAR领域应用最广泛的数据驱动自聚焦算法。其核心思想是：从距离压缩数据中选取强散射点，对其方位向相位历程求梯度，通过迭代估计并补偿相位误差。PGA不需要假设误差模型的具体形式（如多项式阶数），理论上可以补偿任意形式的相位误差，但需要多次迭代（通常10--30次），且对强散射点的选取策略敏感。
+
+\subsubsection{最小熵法（MEA）的不同优化器}
+
+本项目采用PSO作为最小熵目标函数的优化器。其他可选优化策略包括：
+
+\begin{itemize}
+  \item \textbf{梯度下降法}：收敛速度快（适合凸函数），但图像熵函数可能存在多个局部极值，容易陷入局部最优；
+  \item \textbf{遗传算法（GA）}\cite{ref_ga}：通过选择、交叉、变异操作模拟自然进化过程，全局搜索能力与PSO相当，但参数设置（交叉率、变异率）更复杂，收敛速度通常慢于PSO；
+  \item \textbf{差分进化（DE）}\cite{ref_de}：类似GA但使用差分变异策略，在连续优化问题上通常优于标准GA，参数更少且鲁棒性好；
+  \item \textbf{贝叶斯优化（BO）}：构建目标函数的高斯过程代理模型，适合计算代价高的优化问题，但在低维问题（如本项目的二维搜索）上优势不明显。
+\end{itemize}
+
+\subsubsection{基于深度学习的自聚焦}
+
+近年来出现了利用卷积神经网络直接从散焦ISAR图像估计相位误差的方法\cite{ref_dl_autofocus}。此类方法无需迭代优化，推理速度极快（毫秒级），但需要大量带标注的训练数据，且泛化能力受限于训练数据分布。
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{lCCCL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 算法 &
+  \color{white}\bfseries 全局搜索 &
+  \color{white}\bfseries 收敛速度 &
+  \color{white}\bfseries 先验假设 &
+  \color{white}\bfseries 适用场景 \\
+\midrule
+PGA & 否（数据驱动） & 中等 & 无模型假设 & 通用自聚焦 \\
+\rowcolor{rowalt}
+PSO+MEA（本项目） & 是 & 较快 & 多项式模型 & 低阶误差补偿 \\
+GA+MEA & 是 & 较慢 & 多项式模型 & 高维参数空间 \\
+\rowcolor{rowalt}
+DE+MEA & 是 & 中等 & 多项式模型 & 连续优化 \\
+梯度+MEA & 否 & 最快 & 多项式模型 & 凸性较好时 \\
+\rowcolor{rowalt}
+深度学习 & 否（端到端） & 极快（推理） & 数据驱动 & 大数据在线处理 \\
+\bottomrule
+\end{tabularx}
+\caption{自聚焦算法对比}
+\label{tab:autofocus_comparison}
+\end{table}
+
+\subsection{目标跟踪滤波算法对比}
+
+本项目采用标准卡尔曼滤波（KF）配合匀速运动模型。以下分析其他可用于目标跟踪的滤波方法：
+
+\subsubsection{扩展卡尔曼滤波（EKF）}
+
+EKF\cite{ref_ekf}通过对非线性系统方程进行一阶Taylor展开来实现线性化近似，适用于极坐标测量（雷达直接输出距离和角度）等非线性观测模型。但EKF在强非线性条件下线性化误差较大，可能导致滤波发散。
+
+\subsubsection{无迹卡尔曼滤波（UKF）}
+
+UKF\cite{ref_ukf}采用确定性采样策略（sigma点），通过非线性变换后重新拟合高斯分布，避免了EKF的Jacobian矩阵计算。UKF对中度非线性系统的精度优于EKF，且实现相对简单，是EKF的推荐替代方案。
+
+\subsubsection{粒子滤波（PF）}
+
+粒子滤波\cite{ref_pf}基于蒙特卡洛采样，用一组带权重的随机粒子逼近后验概率分布，能够处理任意非线性、非高斯系统。其精度最高但计算量最大（$O(N_{\text{particles}})$），适合强非线性或多模态噪声场景。对于本项目的线性高斯系统，KF已是最优解，粒子滤波在此场景下为"杀鸡用牛刀"。
+
+\subsubsection{交互多模型（IMM）滤波}
+
+IMM\cite{ref_imm}同时运行多个运动模型（如匀速CV、匀加速CA、协调转弯CT），通过马尔可夫转移概率实时切换模型权重，自动适应目标的运动模式变化。IMM是应对无人机机动飞行（加速、转弯、悬停交替）的最佳方案，但实现复杂度较高。
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{lCCCL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 算法 &
+  \color{white}\bfseries 非线性处理 &
+  \color{white}\bfseries 计算复杂度 &
+  \color{white}\bfseries 多模态支持 &
+  \color{white}\bfseries 适用场景 \\
+\midrule
+KF（本项目） & 仅线性 & $O(n^3)$ & 否 & 线性高斯系统 \\
+\rowcolor{rowalt}
+EKF & 弱非线性 & $O(n^3)$ & 否 & 极坐标量测 \\
+UKF & 中度非线性 & $O(n^3)$ & 否 & EKF替代方案 \\
+\rowcolor{rowalt}
+粒子滤波 & 任意非线性 & $O(N_p \cdot n^2)$ & 是 & 强非线性/非高斯 \\
+IMM & 多模型融合 & $O(M \cdot n^3)$ & 是（多模型） & 机动目标跟踪 \\
+\bottomrule
+\end{tabularx}
+\caption{目标跟踪滤波算法对比（$n$为状态维度，$N_p$为粒子数，$M$为模型数）}
+\label{tab:tracking_comparison}
+\end{table}
+
+\subsection{多基站定位算法对比}
+
+\subsubsection{三种定位体制的对比}
+
+本项目实现的TDOA、AOA、RSS三种定位体制各有适用条件，汇总对比如下：
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{lLLLL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 体制 &
+  \color{white}\bfseries 测量量 &
+  \color{white}\bfseries 精度特点 &
+  \color{white}\bfseries 硬件要求 &
+  \color{white}\bfseries 主要误差源 \\
+\midrule
+TDOA & 时间差 & 高（取决于带宽） & 严格时钟同步 & 时钟漂移、多径 \\
+\rowcolor{rowalt}
+AOA & 角度 & 中等（取决于阵列孔径） & 天线阵列 & 角度测量噪声 \\
+RSS & 信号强度 & 较低 & 仅需功率检测 & 阴影衰落、模型偏差 \\
+\bottomrule
+\end{tabularx}
+\caption{三种定位体制对比}
+\label{tab:localization_comparison}
+\end{table}
+
+\subsubsection{TDOA定位的求解算法}
+
+TDOA定位问题本质上是求解一组双曲面方程的交点，常用的求解算法包括：
+
+\begin{itemize}
+  \item \textbf{Chan算法}\cite{ref_tdoa}（本项目采用）：两步加权最小二乘法，闭合解，计算速度快，在中等信噪比下精度接近CRLB（Cram\'{e}r-Rao下界）；
+  \item \textbf{Taylor级数迭代法}\cite{ref_taylor_tdoa}：对非线性方程组进行Taylor展开，迭代线性化求解。精度高但需要良好的初始值，否则可能不收敛；
+  \item \textbf{约束总体最小二乘（CTLS）}\cite{ref_ctls}：在最小二乘框架中引入TDOA方程的二次约束，精度优于Chan算法，但计算复杂度更高；
+  \item \textbf{半定规划（SDP）松弛}\cite{ref_sdp_localization}：将非凸定位问题松弛为半定规划问题，可获得全局最优解的紧界近似，适合强噪声环境。
+\end{itemize}
+
+\subsubsection{混合定位与数据融合}
+
+实际系统中，不同定位体制可互补融合以提升性能：
+\begin{itemize}
+  \item \textbf{TDOA/AOA联合定位}：减少所需基站数，3个基站即可实现三维定位；
+  \item \textbf{加权融合}：根据各体制的GDOP或CRLB自适应分配权重\cite{ref_hybrid_localization}；
+  \item \textbf{序贯滤波融合}：将定位结果送入卡尔曼滤波器，利用运动模型约束平滑定位轨迹。
+\end{itemize}
+
+\subsection{目标分类算法对比}
+
+\subsubsection{传统机器学习 vs 深度学习}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{lCCCL}
+\toprule
+\rowcolor{tabhead}\color{white}\bfseries 方法 &
+  \color{white}\bfseries 数据需求 &
+  \color{white}\bfseries 特征工程 &
+  \color{white}\bfseries 训练时间 &
+  \color{white}\bfseries 适用场景 \\
+\midrule
+SVM（本项目） & 少量 & 需手工设计 & 秒级 & 小样本快速验证 \\
+\rowcolor{rowalt}
+随机森林 & 少量 & 需手工设计 & 秒级 & 特征重要性分析 \\
+CNN（本项目） & 中等 & 自动学习 & 分钟级 & 充足标注数据 \\
+\rowcolor{rowalt}
+ResNet迁移（本项目） & 少量 & 自动学习 & 分钟级 & 数据稀缺 \\
+Vision Transformer & 大量 & 自动学习 & 小时级 & 超大规模数据集 \\
+\bottomrule
+\end{tabularx}
+\caption{目标分类算法对比}
+\label{tab:classification_comparison}
+\end{table}
+
+\subsubsection{新兴方法}
+
+\begin{itemize}
+  \item \textbf{图神经网络（GNN）}：将ISAR图像中的散射点建模为图节点，利用图卷积网络学习散射点之间的拓扑关系进行分类\cite{ref_gnn_radar}，对散射点稀疏目标效果好；
+  \item \textbf{微多普勒特征分类}\cite{ref_micro_doppler}：利用无人机旋翼旋转产生的微多普勒特征（时频图中的周期性调制）进行分类，可与ISAR图像特征互补融合；
+  \item \textbf{小样本学习（Few-Shot Learning）}：利用元学习策略，仅需每类几个样本即可训练分类器，特别适合实测ISAR数据稀缺的场景。
+\end{itemize}
+
+% ════════════════════════════════════════════════════════
 \section{现有不足}
 
 本项目在仿真层面完成了系统性验证，但仍存在以下主要局限：
@@ -1003,6 +1226,113 @@ Dalal N, Triggs B.
 Histograms of oriented gradients for human detection[C]//
 \textit{IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}.
 San Diego, USA: IEEE, 2005: 886--893.
+
+\bibitem{ref_pfa}
+Jakowatz C V, Wahl D E, Eichel P H, et al.
+\textit{Spotlight-Mode Synthetic Aperture Radar: A Signal Processing Approach}[M].
+Boston: Kluwer Academic Publishers, 1996.
+
+\bibitem{ref_stft_isar}
+Chen V C, Qian S.
+Joint time-frequency transform for radar range-Doppler imaging[J].
+\textit{IEEE Transactions on Aerospace and Electronic Systems}, 1998, 34(2): 486--499.
+
+\bibitem{ref_wvd}
+Cohen L.
+Time-frequency distributions --- a review[J].
+\textit{Proceedings of the IEEE}, 1989, 77(7): 941--981.
+
+\bibitem{ref_aok}
+Jones D L, Baraniuk R G.
+An adaptive optimal-kernel time-frequency representation[J].
+\textit{IEEE Transactions on Signal Processing}, 1995, 43(10): 2361--2371.
+
+\bibitem{ref_music}
+Schmidt R O.
+Multiple emitter location and signal parameter estimation[J].
+\textit{IEEE Transactions on Antennas and Propagation}, 1986, 34(3): 276--280.
+
+\bibitem{ref_esprit}
+Roy R, Kailath T.
+ESPRIT --- estimation of signal parameters via rotational invariance techniques[J].
+\textit{IEEE Transactions on Acoustics, Speech, and Signal Processing}, 1989, 37(7): 984--995.
+
+\bibitem{ref_cs_isar}
+Zhang L, Xing M, Qiu C, et al.
+Achieving higher resolution ISAR imaging with limited pulses via compressed sampling[J].
+\textit{IEEE Geoscience and Remote Sensing Letters}, 2009, 6(3): 567--571.
+
+\bibitem{ref_pga}
+Wahl D E, Eichel P H, Ghiglia D C, et al.
+Phase gradient autofocus --- a robust tool for high resolution SAR phase correction[J].
+\textit{IEEE Transactions on Aerospace and Electronic Systems}, 1994, 30(3): 827--835.
+
+\bibitem{ref_ga}
+Holland J H.
+\textit{Adaptation in Natural and Artificial Systems}[M].
+Ann Arbor: University of Michigan Press, 1975.
+
+\bibitem{ref_de}
+Storn R, Price K.
+Differential evolution --- a simple and efficient heuristic for global optimization over continuous spaces[J].
+\textit{Journal of Global Optimization}, 1997, 11(4): 341--359.
+
+\bibitem{ref_dl_autofocus}
+Wang F, Xu F, Jin Y Q.
+ISAR autofocusing using deep learning network[C]//
+\textit{IEEE International Geoscience and Remote Sensing Symposium (IGARSS)}.
+IEEE, 2019: 2626--2629.
+
+\bibitem{ref_ekf}
+Bar-Shalom Y, Li X R, Kirubarajan T.
+\textit{Estimation with Applications to Tracking and Navigation}[M].
+New York: John Wiley \& Sons, 2001.
+
+\bibitem{ref_ukf}
+Julier S J, Uhlmann J K.
+Unscented filtering and nonlinear estimation[J].
+\textit{Proceedings of the IEEE}, 2004, 92(3): 401--422.
+
+\bibitem{ref_pf}
+Arulampalam M S, Maskell S, Gordon N, et al.
+A tutorial on particle filters for online nonlinear/non-Gaussian Bayesian tracking[J].
+\textit{IEEE Transactions on Signal Processing}, 2002, 50(2): 174--188.
+
+\bibitem{ref_imm}
+Blom H A P, Bar-Shalom Y.
+The interacting multiple model algorithm for systems with Markovian switching coefficients[J].
+\textit{IEEE Transactions on Automatic Control}, 1988, 33(8): 780--783.
+
+\bibitem{ref_taylor_tdoa}
+Foy W H.
+Position-location solutions by Taylor-series estimation[J].
+\textit{IEEE Transactions on Aerospace and Electronic Systems}, 1976, AES-12(2): 187--194.
+
+\bibitem{ref_ctls}
+Huang Y, Benesty J, Elko G W, et al.
+Real-time passive source localization: A practical linear-correction least-squares approach[J].
+\textit{IEEE Transactions on Speech and Audio Processing}, 2001, 9(8): 943--956.
+
+\bibitem{ref_sdp_localization}
+Vaghefi R M, Gholami M R, Buehrer R M, et al.
+Cooperative received signal strength-based sensor localization with unknown transmit powers[J].
+\textit{IEEE Transactions on Signal Processing}, 2013, 61(6): 1389--1403.
+
+\bibitem{ref_hybrid_localization}
+Shen J, Molisch A F, Salmi J.
+Accurate passive location estimation using TOA measurements[J].
+\textit{IEEE Transactions on Wireless Communications}, 2012, 11(6): 2182--2192.
+
+\bibitem{ref_gnn_radar}
+Wang M, Zhang S, Xu L.
+Graph neural network for radar automatic target recognition[C]//
+\textit{IEEE Radar Conference (RadarConf)}.
+IEEE, 2021: 1--6.
+
+\bibitem{ref_micro_doppler}
+Chen V C, Li F, Ho S S, et al.
+Micro-Doppler effect in radar: Phenomenon, model, and simulation study[J].
+\textit{IEEE Transactions on Aerospace and Electronic Systems}, 2006, 42(1): 2--21.
 
 \end{thebibliography}
 

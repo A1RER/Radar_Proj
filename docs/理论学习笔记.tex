@@ -325,6 +325,49 @@ I_\text{dB} = 20\log_{10}\!\left(\frac{|I|}{|I|_\text{max}} + \varepsilon\right)
 
 方位分辨率远优于距离分辨率，这是因为毫米波波长极短（$\lambda \approx 10.7$ mm），在旋转积累角度 $\Delta\theta = \omega T_\text{obs} = 1$ rad 下能获得极高的角度分辨能力。
 
+\subsection{ISAR成像的替代算法}
+
+除了本项目使用的经典RD（Range-Doppler）算法，还有多种ISAR成像方法，各有所长：
+
+\begin{warnbox}[方法对比速查]
+\begin{itemize}
+  \item \textbf{RD算法}（本项目）：距离FFT + 方位FFT，简单高效，适合匀速旋转目标
+  \item \textbf{PFA（极坐标格式算法）}：频域二维插值，大转角下聚焦更好，但计算量大
+  \item \textbf{时频分析法}（STFT/WVD）：能处理非匀速旋转的机动目标，但受分辨率-时间互斥约束
+  \item \textbf{超分辨方法}（MUSIC/ESPRIT/压缩感知）：突破FFT分辨率极限，但需高信噪比或稀疏假设
+\end{itemize}
+\end{warnbox}
+
+\subsubsection{为什么我们选RD？}
+
+\begin{intubox}[选型逻辑]
+我们的场景是：5G基站固定，无人机旋转角速度$\omega=0.5\,$rad/s，观测时间$T_\text{obs}=2\,$s，转角约$1\,$rad $\approx 57°$。这已经不算小角度了，但对于仿真验证而言RD算法足够清晰地展示原理。
+
+如果未来需要处理真实数据中更复杂的运动，应考虑：
+\begin{itemize}
+  \item 目标匀速旋转但角度大 $\to$ 升级到PFA
+  \item 目标机动飞行（变速/变向）$\to$ 时频分析法
+  \item 需要用少量脉冲获得高分辨率 $\to$ 压缩感知
+\end{itemize}
+\end{intubox}
+
+\subsubsection{超分辨率方法简介}
+
+传统FFT的分辨率上限是$\Delta a = \lambda/(2\omega T_\text{obs})$，这是Rayleigh极限。超分辨率方法试图突破这个限制：
+
+\begin{enumerate}
+  \item \textbf{MUSIC算法}：把数据分成"信号子空间"和"噪声子空间"两部分，利用两者的正交性构造伪谱函数，极大地提高分辨率。代价是需要知道散射点个数，且信噪比要求高。
+  \item \textbf{压缩感知}：如果目标在空间域是稀疏的（只有几个散射点），那么可以用远少于Nyquist要求的采样数据恢复完整图像。相当于"少问几个问题就猜出答案"，前提是答案足够简单。
+\end{enumerate}
+
+\textbf{关键参考文献}：
+\begin{itemize}
+  \item RD算法：Chen \& Martorella, \textit{Inverse Synthetic Aperture Radar Imaging}, SciTech 2014
+  \item PFA：Jakowatz et al., \textit{Spotlight-Mode SAR: A Signal Processing Approach}, 1996
+  \item MUSIC：Schmidt, IEEE Trans. AP, 1986
+  \item 压缩感知ISAR：Zhang et al., IEEE GRSL, 2009
+\end{itemize}
+
 %%==========================================================
 \section{模块二：PSO粒子群优化}
 %%==========================================================
@@ -412,6 +455,60 @@ H = -\sum_{i,j} p_{ij} \ln p_{ij}, \quad p_{ij} = \frac{|I(i,j)|}{\sum_{i,j}|I(i
   \item \textbf{重复2-5}，直到达到最大迭代次数
   \item \textbf{输出}全局最优位置 $(\alpha^*, \beta^*)$，应用于图像相位补偿
 \end{enumerate}
+
+\subsection{PSO的替代优化算法}
+
+PSO不是唯一能解决自聚焦问题的优化算法。以下是几种常见替代方案：
+
+\begin{keybox}[自聚焦优化算法对比]
+\begin{tabular}{llll}
+\toprule
+算法 & 全局搜索 & 收敛速度 & 实现难度 \\
+\midrule
+PSO（本项目） & 强 & 约20次迭代 & 简单 \\
+遗传算法（GA） & 强 & 约50次迭代 & 中等 \\
+差分进化（DE） & 强 & 约30次迭代 & 简单 \\
+梯度下降 & 无 & 最快（若凸） & 最简单 \\
+PGA（相位梯度） & 数据驱动 & 10--30次迭代 & 中等 \\
+\bottomrule
+\end{tabular}
+\end{keybox}
+
+\subsubsection{PGA（Phase Gradient Autofocus）}
+
+PGA是SAR/ISAR领域最主流的自聚焦方法，它\textbf{不需要假设}误差是什么形式（多项式还是其他），而是直接从数据中提取相位误差。
+
+\begin{intubox}[PGA的直觉理解]
+想象一个明亮的散射点：如果图像完全聚焦，它在方位向应该是一个尖锐的峰。散焦时，这个峰被"抹开"了，但它的相位信息里藏着误差线索。
+
+PGA的做法：
+\begin{enumerate}
+  \item 找到最亮的散射点
+  \item 提取它的方位向相位历程
+  \item 对相位求导（梯度），估计出相位误差的变化率
+  \item 积分回去得到相位误差，补偿之
+  \item 重复以上过程直到收敛
+\end{enumerate}
+PGA的好处是"模型无关"——不管误差长什么样它都能补偿。PSO+最小熵法则更适合误差可以用低阶多项式（如$\alpha t + \beta t^2$）描述的场景。
+\end{intubox}
+
+\subsubsection{遗传算法（GA）vs PSO}
+
+GA模拟"自然选择"：个体（候选解）通过选择、交叉、变异繁殖后代。与PSO相比：
+\begin{itemize}
+  \item GA的交叉操作能组合不同个体的优势，探索能力更多样化
+  \item 但GA需要调节的参数更多（交叉率、变异率、选择策略）
+  \item 在连续优化问题（如本项目的$\alpha, \beta$搜索）上，PSO通常收敛更快
+  \item 在离散/组合优化问题上，GA更有优势
+\end{itemize}
+
+\textbf{关键参考文献}：
+\begin{itemize}
+  \item PSO：Kennedy \& Eberhart, ICNN 1995
+  \item PGA：Wahl et al., IEEE Trans. AES, 1994
+  \item GA：Holland, \textit{Adaptation in Natural and Artificial Systems}, 1975
+  \item DE：Storn \& Price, J. Global Optimization, 1997
+\end{itemize}
 
 %%==========================================================
 \section{模块三：卡尔曼滤波轨迹跟踪}
@@ -509,6 +606,67 @@ RMSE（均方根误差）定义为：
 \text{RMSE} = \sqrt{\frac{1}{N}\sum_{k=1}^{N}\left\|\hat{\mat{x}}_k - \mat{x}_k^\text{true}\right\|^2}
 \end{equation}
 
+\subsection{卡尔曼滤波的替代方案}
+
+标准卡尔曼滤波在本项目中工作良好，因为我们的系统是\textbf{线性高斯}的（线性运动模型 + 高斯噪声）。但实际应用中，这两个假设经常不成立。
+
+\begin{keybox}[跟踪滤波算法进化路线]
+\begin{center}
+\textbf{KF}（线性+高斯）$\xrightarrow{\text{非线性测量}}$ \textbf{EKF}（Taylor展开）$\xrightarrow{\text{精度不够}}$ \textbf{UKF}（sigma点）$\xrightarrow{\text{非高斯}}$ \textbf{粒子滤波}（蒙特卡洛）
+
+\medskip
+另一条路线：单模型 $\xrightarrow{\text{目标机动}}$ \textbf{IMM}（多模型切换）
+\end{center}
+\end{keybox}
+
+\subsubsection{EKF（扩展卡尔曼滤波）}
+
+\begin{intubox}[什么时候需要EKF？]
+当测量方程是\textbf{非线性}的时候。比如雷达直接输出的是极坐标$(r, \theta)$而非直角坐标$(x, y)$，测量方程变成：
+\[
+z = \begin{pmatrix} \sqrt{x^2+y^2} \\ \arctan(y/x) \end{pmatrix} + v
+\]
+这是非线性的，标准KF不能直接用。EKF的做法是对这个方程做Taylor一阶展开，把它\textbf{局部线性化}，然后套用KF公式。
+
+缺点：线性化误差可能很大，尤其当$\theta$变化剧烈时。
+\end{intubox}
+
+\subsubsection{UKF（无迹卡尔曼滤波）}
+
+UKF的核心思想："近似概率分布比近似非线性函数更容易"。
+
+具体做法：在当前估计周围取若干个"sigma点"（确定性采样），把这些点通过非线性函数变换，再从变换后的点重新拟合高斯分布。比EKF更精确，且不需要求Jacobian矩阵。
+
+\subsubsection{粒子滤波}
+
+粒子滤波是最通用的方法——用大量随机粒子（如1000个）代表概率分布，不做任何高斯或线性假设。
+
+\begin{warnbox}[在本项目中用粒子滤波是"杀鸡用牛刀"]
+我们的系统是线性高斯的，标准KF\textbf{已经是理论最优解}（最小均方误差估计）。粒子滤波在这种简单场景下只会增加计算量而不提高精度。
+
+粒子滤波真正发挥优势的场景：
+\begin{itemize}
+  \item 噪声分布不是高斯的（如多径环境下的厚尾分布）
+  \item 系统强非线性
+  \item 需要同时跟踪多个假设（多目标跟踪）
+\end{itemize}
+\end{warnbox}
+
+\subsubsection{IMM（交互多模型）}
+
+无人机飞行时，运动模式会切换：直线飞行$\to$转弯$\to$悬停$\to$加速。单一的"匀速模型"无法覆盖所有状态。
+
+IMM的做法：同时运行多个卡尔曼滤波器，每个使用不同的运动模型（匀速CV、匀加速CA、协调转弯CT），根据当前数据自动调整各模型的概率权重，输出加权融合结果。
+
+\textbf{关键参考文献}：
+\begin{itemize}
+  \item KF原论文：Kalman, Trans. ASME, 1960
+  \item EKF/UKF教程：Bar-Shalom et al., \textit{Estimation with Applications to Tracking}, 2001
+  \item UKF：Julier \& Uhlmann, Proc. IEEE, 2004
+  \item 粒子滤波教程：Arulampalam et al., IEEE Trans. SP, 2002
+  \item IMM：Blom \& Bar-Shalom, IEEE Trans. AC, 1988
+\end{itemize}
+
 %%==========================================================
 \section{模块四：多基站协同定位}
 %%==========================================================
@@ -586,6 +744,46 @@ GDOP（Geometric Dilution of Precision）衡量基站几何布局对定位精度
 \text{GDOP} = \sqrt{\text{tr}\left[(\mat{G}^\top\mat{G})^{-1}\right]_{1:3,1:3}}
 \end{equation}
 其中 $\mat{G}$ 是由各基站方向余弦构成的几何矩阵。
+
+\subsection{定位算法对比与选型}
+
+\subsubsection{三种体制怎么选？}
+
+\begin{intubox}[一句话总结]
+\begin{itemize}
+  \item \textbf{要精度选TDOA}——时间测量精度最高（5G带宽大），但需要基站间严格时钟同步
+  \item \textbf{硬件简单选AOA}——只需天线阵列测角度，有解析解计算快，精度适中
+  \item \textbf{最省事选RSS}——只测信号强度，实现最简单，但精度最差（受多径和阴影衰落影响大）
+  \item \textbf{实际工程}——通常混合使用（如TDOA+AOA），取长补短
+\end{itemize}
+\end{intubox}
+
+\subsubsection{TDOA求解算法的选择}
+
+TDOA定位的数学本质是求解双曲面方程组，这是非线性问题。常用的求解方法：
+
+\begin{enumerate}
+  \item \textbf{Chan算法}（本项目采用）：两步加权最小二乘，给出闭合解，速度快。精度在中高信噪比下接近理论极限（CRLB）。
+  \item \textbf{Taylor级数法}：对非线性方程做Taylor展开迭代求解。精度可以更高，但需要好的初始值，否则可能不收敛——就像爬山时如果起点选错了山头，就爬不到最高峰。
+  \item \textbf{半定规划（SDP）松弛}：把非凸问题松弛为凸优化问题，能保证找到全局最优的近似解，适合强噪声环境。但计算量较大。
+\end{enumerate}
+
+\subsubsection{混合定位的优势}
+
+实际5G基站同时具备时钟（TDOA）、天线阵列（AOA）和功率检测（RSS）能力，可以将三种测量融合：
+
+\begin{equation}
+\hat{\mat{p}}_\text{fusion} = \sum_{m} w_m \hat{\mat{p}}_m, \quad w_m \propto \frac{1}{\text{GDOP}_m^2}
+\end{equation}
+
+权重按各体制的GDOP反比分配——哪种体制在当前几何构型下精度更高，就给它更大的权重。
+
+\textbf{关键参考文献}：
+\begin{itemize}
+  \item Chan算法：Chan \& Ho, IEEE Trans. SP, 1994
+  \item Taylor级数法：Foy, IEEE Trans. AES, 1976
+  \item SDP松弛定位：Vaghefi et al., IEEE Trans. SP, 2013
+\end{itemize}
 
 %%==========================================================
 \section{模块五：机器学习目标分类}
@@ -672,6 +870,737 @@ ResNet-18在ImageNet的140万张图片上学到了丰富的通用视觉特征（
 \begin{equation}
 P_i = \frac{C_{ii}}{\sum_j C_{ji}}, \quad R_i = \frac{C_{ii}}{\sum_j C_{ij}}, \quad F1_i = \frac{2P_i R_i}{P_i + R_i}
 \end{equation}
+
+\subsection{分类方法的对比与扩展}
+
+\subsubsection{传统方法 vs 深度学习}
+
+\begin{keybox}[何时用传统方法，何时用深度学习？]
+\begin{tabular}{lll}
+\toprule
+条件 & 推荐方法 & 原因 \\
+\midrule
+数据量 < 500 & SVM / 随机森林 & 深度学习会过拟合 \\
+数据量 500--5000 & ResNet迁移学习 & 借用预训练知识 \\
+数据量 > 10000 & 从头训练CNN & 数据够多，可自学特征 \\
+需要可解释性 & 随机森林 & 可输出特征重要性排序 \\
+需要最高精度 & 深度学习集成 & 多模型投票 \\
+\bottomrule
+\end{tabular}
+\end{keybox}
+
+\subsubsection{微多普勒特征：另一个维度}
+
+除了ISAR图像，无人机还有一个独特的雷达特征——\textbf{微多普勒}（micro-Doppler）。无人机的旋翼高速旋转，在雷达回波的时频图上会产生周期性调制信号。不同类型的无人机旋翼数量、转速不同，微多普勒"指纹"也不同。
+
+将微多普勒特征与ISAR图像特征融合，可以显著提高分类准确率——就像同时看"长相"和"声音"来辨认一个人。
+
+\subsubsection{小样本学习（Few-Shot Learning）}
+
+在实测场景中，获取大量带标注的ISAR图像非常困难。小样本学习（如原型网络Prototypical Networks、MAML等）仅需每类5--10个样本即可训练，通过"学会如何学习"来应对新类别。这是ISAR目标识别的前沿研究方向。
+
+\textbf{关键参考文献}：
+\begin{itemize}
+  \item 微多普勒：Chen et al., IEEE Trans. AES, 2006
+  \item ResNet：He et al., CVPR, 2016
+  \item 小样本学习：Snell et al., NeurIPS, 2017（Prototypical Networks）
+\end{itemize}
+
+%%==========================================================
+\section{替代算法代码实现（MATLAB / Python 对照）}
+%%==========================================================
+
+本节给出前文讨论的几种关键替代算法的核心代码实现，便于动手实验对比。每段代码均提供MATLAB与Python两个版本。
+
+\subsection{MUSIC超分辨率方位估计}
+
+MUSIC算法通过信号子空间与噪声子空间的正交性构造伪谱，突破FFT的Rayleigh极限。以下代码对距离压缩后某一距离单元的慢时间信号进行MUSIC方位估计。
+
+\begin{lstlisting}[language=Matlab, caption={MUSIC算法 — MATLAB}]
+function [pseudo_spectrum, angles] = music_azimuth(signal, num_sources, omega, fc, c)
+% signal:   1 x num_pulses 慢时间信号（单距离单元）
+% num_sources: 散射点个数（需先验已知）
+% omega, fc, c: 旋转角速度、载波频率、光速
+% 返回: pseudo_spectrum 伪谱, angles 扫描角度轴
+
+    lambda = c / fc;
+    N = length(signal);
+
+    % 1. 构建协方差矩阵（前向-后向平均提高估计精度）
+    M = floor(N / 3);          % 子阵长度
+    Rxx = zeros(M);
+    for i = 1:(N - M + 1)
+        x = signal(i:i+M-1).';  % 列向量
+        Rxx = Rxx + (x * x');
+    end
+    Rxx = Rxx / (N - M + 1);
+
+    % 2. 特征分解：信号子空间 + 噪声子空间
+    [V, D] = eig(Rxx);
+    [~, idx] = sort(diag(D), 'descend');
+    V = V(:, idx);
+    En = V(:, num_sources+1:end);  % 噪声子空间
+
+    % 3. 扫描方位角，计算伪谱
+    angles = linspace(-0.5, 0.5, 1000);  % 方位位置 (m)
+    pseudo_spectrum = zeros(size(angles));
+
+    for i = 1:length(angles)
+        fd = 2 * omega * angles(i) / lambda;   % 多普勒频率
+        a = exp(1j*2*pi*fd*(0:M-1)'/1000);     % 导向矢量 (PRF=1000)
+        pseudo_spectrum(i) = 1 / abs(a' * (En * En') * a);
+    end
+
+    pseudo_spectrum = 10*log10(pseudo_spectrum / max(pseudo_spectrum));
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={MUSIC算法 — Python}]
+import numpy as np
+
+def music_azimuth(signal, num_sources, omega, fc, c=3e8, PRF=1000):
+    """
+    MUSIC超分辨率方位估计
+    signal:      (num_pulses,) 慢时间信号（单距离单元）
+    num_sources: 散射点个数
+    返回: pseudo_spectrum, angles
+    """
+    lam = c / fc
+    N = len(signal)
+    M = N // 3  # 子阵长度
+
+    # 1. 协方差矩阵
+    Rxx = np.zeros((M, M), dtype=complex)
+    for i in range(N - M + 1):
+        x = signal[i:i+M, np.newaxis]   # 列向量
+        Rxx += x @ x.conj().T
+    Rxx /= (N - M + 1)
+
+    # 2. 特征分解
+    eigenvalues, V = np.linalg.eigh(Rxx)
+    idx = np.argsort(eigenvalues)[::-1]  # 降序
+    V = V[:, idx]
+    En = V[:, num_sources:]              # 噪声子空间
+
+    # 3. 扫描伪谱
+    angles = np.linspace(-0.5, 0.5, 1000)
+    pseudo_spectrum = np.zeros(len(angles))
+
+    for i, pos in enumerate(angles):
+        fd = 2 * omega * pos / lam
+        a = np.exp(1j * 2 * np.pi * fd * np.arange(M) / PRF)
+        denom = a.conj() @ (En @ En.conj().T) @ a
+        pseudo_spectrum[i] = 1.0 / np.abs(denom)
+
+    pseudo_spectrum = 10 * np.log10(
+        pseudo_spectrum / pseudo_spectrum.max() + 1e-20)
+    return pseudo_spectrum, angles
+\end{lstlisting}
+
+\subsection{PGA相位梯度自聚焦}
+
+PGA不假设相位误差的参数形式，直接从数据中提取并补偿。以下是简化版核心流程。
+
+\begin{lstlisting}[language=Matlab, caption={PGA自聚焦 — MATLAB}]
+function data_out = pga_autofocus(data, num_iter)
+% data: num_range x num_pulses 距离压缩后数据
+% num_iter: 迭代次数（通常 10-20）
+
+    [Nr, Na] = size(data);
+    data_out = data;
+
+    for iter = 1:num_iter
+        % 1. 方位FFT得到当前图像
+        img = fftshift(fft(data_out, [], 2), 2);
+
+        % 2. 选择最亮的散射点（按峰值排序，取前 10%）
+        peak_power = max(abs(img), [], 2);  % 每行最大值
+        [~, idx] = sort(peak_power, 'descend');
+        num_select = max(1, floor(Nr * 0.1));
+        selected = idx(1:num_select);
+
+        % 3. 对选中的距离单元，提取方位向相位
+        %    先回到慢时间域
+        for r = selected'
+            row = data_out(r, :);
+
+            % 4. 相位梯度估计：相邻样本相位差
+            phase_diff = angle(row(2:end) .* conj(row(1:end-1)));
+
+            % 5. 积分得到相位误差
+            phase_error = [0, cumsum(phase_diff)];
+
+            % 6. 补偿（逐行）
+            data_out(r, :) = row .* exp(-1j * phase_error);
+        end
+    end
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={PGA自聚焦 — Python}]
+import numpy as np
+
+def pga_autofocus(data, num_iter=15):
+    """
+    PGA相位梯度自聚焦
+    data: (num_range, num_pulses) 距离压缩后数据
+    返回: 补偿后的数据
+    """
+    Nr, Na = data.shape
+    data_out = data.copy()
+
+    for iteration in range(num_iter):
+        # 1. 当前图像
+        img = np.fft.fftshift(np.fft.fft(data_out, axis=1), axes=1)
+
+        # 2. 选最亮散射点
+        peak_power = np.max(np.abs(img), axis=1)
+        num_select = max(1, Nr // 10)
+        selected = np.argsort(peak_power)[-num_select:]
+
+        # 3-6. 提取相位梯度、积分、补偿
+        for r in selected:
+            row = data_out[r, :]
+            phase_diff = np.angle(row[1:] * np.conj(row[:-1]))
+            phase_error = np.concatenate([[0], np.cumsum(phase_diff)])
+            data_out[r, :] = row * np.exp(-1j * phase_error)
+
+    return data_out
+\end{lstlisting}
+
+\subsection{遗传算法（GA）优化}
+
+GA可替代PSO进行最小熵自聚焦。以下为核心迭代框架。
+
+\begin{lstlisting}[language=Matlab, caption={遗传算法自聚焦 — MATLAB}]
+function [best_params, history] = ga_autofocus(data, pop_size, max_gen)
+% data: 距离压缩后数据
+% pop_size: 种群大小 (如 30)
+% max_gen: 最大代数 (如 50)
+
+    dim = 2;  % [alpha, beta]
+    lb = [-0.1, -0.01];
+    ub = [0.1,  0.01];
+
+    % 初始化种群
+    pop = lb + (ub - lb) .* rand(pop_size, dim);
+    fitness = zeros(pop_size, 1);
+    for i = 1:pop_size
+        fitness(i) = calc_entropy(pop(i,:), data);
+    end
+
+    history = zeros(max_gen, 1);
+
+    for gen = 1:max_gen
+        % --- 选择（锦标赛） ---
+        new_pop = zeros(size(pop));
+        for i = 1:pop_size
+            % 随机选两个，留更优的
+            a = randi(pop_size); b = randi(pop_size);
+            if fitness(a) < fitness(b)
+                new_pop(i,:) = pop(a,:);
+            else
+                new_pop(i,:) = pop(b,:);
+            end
+        end
+
+        % --- 交叉（算术交叉） ---
+        crossover_rate = 0.8;
+        for i = 1:2:pop_size-1
+            if rand() < crossover_rate
+                alpha = rand();
+                child1 = alpha*new_pop(i,:) + (1-alpha)*new_pop(i+1,:);
+                child2 = (1-alpha)*new_pop(i,:) + alpha*new_pop(i+1,:);
+                new_pop(i,:)   = child1;
+                new_pop(i+1,:) = child2;
+            end
+        end
+
+        % --- 变异（高斯扰动） ---
+        mutation_rate = 0.1;
+        for i = 1:pop_size
+            if rand() < mutation_rate
+                new_pop(i,:) = new_pop(i,:) + randn(1,dim)*0.01;
+                new_pop(i,:) = max(lb, min(ub, new_pop(i,:)));
+            end
+        end
+
+        % --- 评估 ---
+        pop = new_pop;
+        for i = 1:pop_size
+            fitness(i) = calc_entropy(pop(i,:), data);
+        end
+
+        [best_val, best_idx] = min(fitness);
+        history(gen) = best_val;
+    end
+
+    [~, best_idx] = min(fitness);
+    best_params = pop(best_idx, :);
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={遗传算法自聚焦 — Python}]
+import numpy as np
+
+def ga_autofocus(data, pop_size=30, max_gen=50):
+    """遗传算法最小熵自聚焦"""
+    lb = np.array([-0.1, -0.01])
+    ub = np.array([0.1,  0.01])
+    dim = 2
+
+    # 初始化
+    pop = lb + (ub - lb) * np.random.rand(pop_size, dim)
+    fitness = np.array([calc_entropy(p, data) for p in pop])
+    history = []
+
+    for gen in range(max_gen):
+        # 锦标赛选择
+        new_pop = np.zeros_like(pop)
+        for i in range(pop_size):
+            a, b = np.random.randint(0, pop_size, 2)
+            new_pop[i] = pop[a] if fitness[a] < fitness[b] else pop[b]
+
+        # 算术交叉
+        for i in range(0, pop_size - 1, 2):
+            if np.random.rand() < 0.8:
+                alpha = np.random.rand()
+                c1 = alpha * new_pop[i] + (1-alpha) * new_pop[i+1]
+                c2 = (1-alpha) * new_pop[i] + alpha * new_pop[i+1]
+                new_pop[i], new_pop[i+1] = c1, c2
+
+        # 高斯变异
+        mask = np.random.rand(pop_size) < 0.1
+        new_pop[mask] += np.random.randn(mask.sum(), dim) * 0.01
+        new_pop = np.clip(new_pop, lb, ub)
+
+        # 评估
+        pop = new_pop
+        fitness = np.array([calc_entropy(p, data) for p in pop])
+        history.append(fitness.min())
+
+    best_idx = np.argmin(fitness)
+    return pop[best_idx], history
+\end{lstlisting}
+
+\subsection{EKF扩展卡尔曼滤波（极坐标量测）}
+
+当雷达直接输出极坐标量测 $(r, \theta)$ 时，量测方程非线性，需用EKF替代标准KF。
+
+\begin{lstlisting}[language=Matlab, caption={EKF跟踪 — MATLAB}]
+function est_traj = ekf_tracking(measurements_polar, dt)
+% measurements_polar: 2 x N, 每列 [距离; 方位角(rad)]
+% dt: 时间步长
+
+    N = size(measurements_polar, 2);
+
+    % 状态: [x, y, vx, vy]
+    F = [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1];
+    Q = diag([0.1, 0.1, 0.5, 0.5]);
+    R = diag([5^2, (2*pi/180)^2]);  % 距离噪声5m, 角度噪声2度
+
+    % 用首次量测初始化
+    r0 = measurements_polar(1, 1);
+    th0 = measurements_polar(2, 1);
+    x = [r0*cos(th0); r0*sin(th0); 0; 0];
+    P = eye(4) * 100;
+
+    est_traj = zeros(4, N);
+
+    for k = 1:N
+        % === 预测 ===
+        x_pred = F * x;
+        P_pred = F * P * F' + Q;
+
+        % === EKF更新: 非线性量测方程 h(x) = [sqrt(x^2+y^2); atan2(y,x)] ===
+        px = x_pred(1); py = x_pred(2);
+        r_pred = sqrt(px^2 + py^2);
+        th_pred = atan2(py, px);
+        z_pred = [r_pred; th_pred];
+
+        % Jacobian矩阵 H = dh/dx
+        H = [px/r_pred,  py/r_pred,  0, 0;
+            -py/r_pred^2, px/r_pred^2, 0, 0];
+
+        % 标准KF更新公式
+        y = measurements_polar(:,k) - z_pred;
+        y(2) = mod(y(2)+pi, 2*pi) - pi;   % 角度归一化到[-pi, pi]
+        S = H * P_pred * H' + R;
+        K = P_pred * H' / S;
+
+        x = x_pred + K * y;
+        P = (eye(4) - K * H) * P_pred;
+
+        est_traj(:, k) = x;
+    end
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={EKF跟踪 — Python}]
+import numpy as np
+
+def ekf_tracking(measurements_polar, dt=0.1):
+    """
+    EKF跟踪（极坐标量测）
+    measurements_polar: (2, N)  每列 [距离, 方位角(rad)]
+    返回: est_traj (4, N)
+    """
+    N = measurements_polar.shape[1]
+
+    F = np.array([[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]])
+    Q = np.diag([0.1, 0.1, 0.5, 0.5])
+    R = np.diag([25.0, (2*np.pi/180)**2])
+
+    # 初始化
+    r0, th0 = measurements_polar[:, 0]
+    x = np.array([r0*np.cos(th0), r0*np.sin(th0), 0, 0])
+    P = np.eye(4) * 100
+
+    est_traj = np.zeros((4, N))
+
+    for k in range(N):
+        # 预测
+        x_pred = F @ x
+        P_pred = F @ P @ F.T + Q
+
+        # 非线性量测预测
+        px, py = x_pred[0], x_pred[1]
+        r_pred = np.sqrt(px**2 + py**2)
+        th_pred = np.arctan2(py, px)
+        z_pred = np.array([r_pred, th_pred])
+
+        # Jacobian
+        H = np.array([
+            [ px/r_pred,      py/r_pred,     0, 0],
+            [-py/r_pred**2,   px/r_pred**2,  0, 0]
+        ])
+
+        # 更新
+        y = measurements_polar[:, k] - z_pred
+        y[1] = (y[1] + np.pi) % (2*np.pi) - np.pi  # 角度归一化
+        S = H @ P_pred @ H.T + R
+        K = P_pred @ H.T @ np.linalg.inv(S)
+
+        x = x_pred + K @ y
+        P = (np.eye(4) - K @ H) @ P_pred
+
+        est_traj[:, k] = x
+
+    return est_traj
+\end{lstlisting}
+
+\subsection{UKF无迹卡尔曼滤波}
+
+UKF用sigma点替代Jacobian，精度优于EKF。以下给出核心框架。
+
+\begin{lstlisting}[language=Matlab, caption={UKF跟踪 — MATLAB}]
+function est_traj = ukf_tracking(measurements_polar, dt)
+% UKF跟踪（极坐标量测）
+
+    N = size(measurements_polar, 2);
+    n = 4;  % 状态维度
+
+    F = [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1];
+    Q = diag([0.1, 0.1, 0.5, 0.5]);
+    R = diag([25, (2*pi/180)^2]);
+
+    % UKF参数
+    alpha = 1e-3; beta = 2; kappa = 0;
+    lambda = alpha^2 * (n + kappa) - n;
+
+    % sigma点权重
+    Wm = [lambda/(n+lambda), repmat(1/(2*(n+lambda)), 1, 2*n)];
+    Wc = Wm; Wc(1) = Wm(1) + (1 - alpha^2 + beta);
+
+    % 初始化
+    r0 = measurements_polar(1,1); th0 = measurements_polar(2,1);
+    x = [r0*cos(th0); r0*sin(th0); 0; 0];
+    P = eye(4) * 100;
+    est_traj = zeros(4, N);
+
+    for k = 1:N
+        % --- 生成 sigma 点 ---
+        sqrtP = chol((n + lambda) * P, 'lower');
+        X = [x, x + sqrtP, x - sqrtP];  % n x (2n+1)
+
+        % --- 预测: sigma点通过运动模型 ---
+        X_pred = F * X;
+        x_pred = X_pred * Wm';
+        P_pred = Q;
+        for i = 1:(2*n+1)
+            dx = X_pred(:,i) - x_pred;
+            P_pred = P_pred + Wc(i) * (dx * dx');
+        end
+
+        % --- 量测预测: sigma点通过非线性量测模型 ---
+        Z_pred = zeros(2, 2*n+1);
+        for i = 1:(2*n+1)
+            px = X_pred(1,i); py = X_pred(2,i);
+            Z_pred(:,i) = [sqrt(px^2+py^2); atan2(py, px)];
+        end
+        z_pred = Z_pred * Wm';
+
+        % --- 协方差与交叉协方差 ---
+        Pzz = R; Pxz = zeros(n, 2);
+        for i = 1:(2*n+1)
+            dz = Z_pred(:,i) - z_pred;
+            dz(2) = mod(dz(2)+pi, 2*pi) - pi;
+            dx = X_pred(:,i) - x_pred;
+            Pzz = Pzz + Wc(i) * (dz * dz');
+            Pxz = Pxz + Wc(i) * (dx * dz');
+        end
+
+        % --- 更新 ---
+        K = Pxz / Pzz;
+        innov = measurements_polar(:,k) - z_pred;
+        innov(2) = mod(innov(2)+pi, 2*pi) - pi;
+        x = x_pred + K * innov;
+        P = P_pred - K * Pzz * K';
+
+        est_traj(:, k) = x;
+    end
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={UKF跟踪 — Python}]
+import numpy as np
+
+def ukf_tracking(measurements_polar, dt=0.1):
+    """UKF跟踪（极坐标量测）"""
+    N = measurements_polar.shape[1]
+    n = 4  # 状态维度
+
+    F = np.array([[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]])
+    Q = np.diag([0.1, 0.1, 0.5, 0.5])
+    R = np.diag([25.0, (2*np.pi/180)**2])
+
+    # UKF参数
+    alpha, beta, kappa = 1e-3, 2, 0
+    lam = alpha**2 * (n + kappa) - n
+
+    Wm = np.full(2*n+1, 1/(2*(n+lam)))
+    Wc = Wm.copy()
+    Wm[0] = lam / (n + lam)
+    Wc[0] = Wm[0] + (1 - alpha**2 + beta)
+
+    # 非线性量测函数
+    def h(state):
+        px, py = state[0], state[1]
+        return np.array([np.sqrt(px**2+py**2), np.arctan2(py, px)])
+
+    # 初始化
+    r0, th0 = measurements_polar[:, 0]
+    x = np.array([r0*np.cos(th0), r0*np.sin(th0), 0, 0])
+    P = np.eye(4) * 100
+    est_traj = np.zeros((4, N))
+
+    for k in range(N):
+        # sigma点
+        sqrtP = np.linalg.cholesky((n + lam) * P)
+        X = np.column_stack([x] + [x + sqrtP[:,i] for i in range(n)]
+                               + [x - sqrtP[:,i] for i in range(n)])
+
+        # 预测
+        X_pred = F @ X
+        x_pred = X_pred @ Wm
+        P_pred = Q.copy()
+        for i in range(2*n+1):
+            dx = X_pred[:,i] - x_pred
+            P_pred += Wc[i] * np.outer(dx, dx)
+
+        # 量测预测
+        Z_pred = np.array([h(X_pred[:,i]) for i in range(2*n+1)]).T
+        z_pred = Z_pred @ Wm
+
+        # 协方差
+        Pzz, Pxz = R.copy(), np.zeros((n, 2))
+        for i in range(2*n+1):
+            dz = Z_pred[:,i] - z_pred
+            dz[1] = (dz[1] + np.pi) % (2*np.pi) - np.pi
+            dx = X_pred[:,i] - x_pred
+            Pzz += Wc[i] * np.outer(dz, dz)
+            Pxz += Wc[i] * np.outer(dx, dz)
+
+        # 更新
+        K = Pxz @ np.linalg.inv(Pzz)
+        innov = measurements_polar[:, k] - z_pred
+        innov[1] = (innov[1] + np.pi) % (2*np.pi) - np.pi
+        x = x_pred + K @ innov
+        P = P_pred - K @ Pzz @ K.T
+
+        est_traj[:, k] = x
+
+    return est_traj
+\end{lstlisting}
+
+\subsection{Taylor级数TDOA迭代求解}
+
+Taylor级数法对TDOA非线性方程组做一阶展开迭代求解，精度高于Chan算法但需要好的初始值。
+
+\begin{lstlisting}[language=Matlab, caption={Taylor级数TDOA — MATLAB}]
+function pos = tdoa_taylor(stations, time_diffs, c, max_iter)
+% stations: N x 3, 基站位置
+% time_diffs: (N-1) x 1, 相对于基站1的时差
+% c: 光速
+% max_iter: 最大迭代次数
+
+    N = size(stations, 1);
+    s1 = stations(1, :)';
+
+    % Chan算法给出初始解
+    A = zeros(N-1, 3); b = zeros(N-1, 1);
+    for i = 2:N
+        si = stations(i,:)';
+        A(i-1,:) = 2*(si - s1)';
+        b(i-1) = c^2*time_diffs(i-1)^2 - si'*si + s1'*s1;
+    end
+    pos = (A'*A) \ (A'*b);
+
+    % Taylor迭代精化
+    for iter = 1:max_iter
+        d = zeros(N, 1);  % 到各基站距离
+        for i = 1:N
+            d(i) = norm(pos - stations(i,:)');
+        end
+
+        % Jacobian 和 残差
+        H = zeros(N-1, 3);
+        delta_r = zeros(N-1, 1);
+        for i = 2:N
+            si = stations(i,:)';
+            H(i-1,:) = ((pos-si)/d(i) - (pos-s1)/d(1))';
+            delta_r(i-1) = c*time_diffs(i-1) - (d(i) - d(1));
+        end
+
+        % 最小二乘更新
+        delta_pos = (H'*H) \ (H'*delta_r);
+        pos = pos + delta_pos;
+
+        if norm(delta_pos) < 1e-6
+            break;
+        end
+    end
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={Taylor级数TDOA — Python}]
+import numpy as np
+
+def tdoa_taylor(stations, time_diffs, c=3e8, max_iter=20):
+    """
+    Taylor级数迭代TDOA定位
+    stations: (N, 3), time_diffs: (N-1,)
+    返回: pos (3,)
+    """
+    N = len(stations)
+    s1 = stations[0]
+
+    # Chan初始解
+    A = np.zeros((N-1, 3))
+    b = np.zeros(N-1)
+    for i in range(1, N):
+        si = stations[i]
+        A[i-1] = 2 * (si - s1)
+        b[i-1] = c**2 * time_diffs[i-1]**2 - si@si + s1@s1
+    pos = np.linalg.lstsq(A, b, rcond=None)[0]
+
+    # Taylor迭代
+    for it in range(max_iter):
+        d = np.array([np.linalg.norm(pos - stations[i])
+                      for i in range(N)])
+
+        H = np.zeros((N-1, 3))
+        delta_r = np.zeros(N-1)
+        for i in range(1, N):
+            H[i-1] = (pos-stations[i])/d[i] - (pos-s1)/d[0]
+            delta_r[i-1] = c*time_diffs[i-1] - (d[i] - d[0])
+
+        delta_pos = np.linalg.lstsq(H, delta_r, rcond=None)[0]
+        pos = pos + delta_pos
+
+        if np.linalg.norm(delta_pos) < 1e-6:
+            break
+
+    return pos
+\end{lstlisting}
+
+\subsection{微多普勒特征提取}
+
+提取无人机旋翼引起的微多普勒特征，用于辅助分类。
+
+\begin{lstlisting}[language=Matlab, caption={微多普勒时频图 — MATLAB}]
+function [S, f_axis, t_axis] = micro_doppler_stft(echo_signal, fs, window_len)
+% echo_signal: 1 x N 慢时间回波
+% fs: 采样率 (PRF)
+% window_len: STFT窗长 (如 64)
+
+    % 使用汉明窗的短时傅里叶变换
+    overlap = floor(window_len * 0.75);      % 75% 重叠
+    nfft = 256;                               % FFT点数
+
+    % 手动实现STFT（避免依赖Signal Processing Toolbox）
+    num_frames = floor((length(echo_signal) - overlap) / (window_len - overlap));
+    S = zeros(nfft, num_frames);
+    win = hamming(window_len)';
+
+    for i = 1:num_frames
+        start_idx = (i-1) * (window_len - overlap) + 1;
+        frame = echo_signal(start_idx:start_idx+window_len-1) .* win;
+        S(:, i) = fftshift(fft(frame, nfft));
+    end
+
+    S = 20*log10(abs(S) + eps);  % dB
+    f_axis = linspace(-fs/2, fs/2, nfft);
+    t_axis = linspace(0, length(echo_signal)/fs, num_frames);
+
+    % 显示时频图
+    imagesc(t_axis, f_axis, S);
+    axis xy; colorbar;
+    xlabel('时间 (s)'); ylabel('多普勒频率 (Hz)');
+    title('微多普勒时频图');
+    caxis([max(S(:))-40, max(S(:))]);
+end
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={微多普勒时频图 — Python}]
+import numpy as np
+import matplotlib.pyplot as plt
+
+def micro_doppler_stft(echo_signal, fs, window_len=64):
+    """
+    微多普勒时频图 (STFT)
+    echo_signal: (N,) 慢时间回波
+    fs: 采样率 (PRF)
+    返回: S (dB), f_axis, t_axis
+    """
+    overlap = int(window_len * 0.75)
+    nfft = 256
+    step = window_len - overlap
+    num_frames = (len(echo_signal) - overlap) // step
+    win = np.hamming(window_len)
+
+    S = np.zeros((nfft, num_frames), dtype=complex)
+    for i in range(num_frames):
+        start = i * step
+        frame = echo_signal[start:start+window_len] * win
+        S[:, i] = np.fft.fftshift(np.fft.fft(frame, nfft))
+
+    S_db = 20 * np.log10(np.abs(S) + 1e-20)
+    f_axis = np.linspace(-fs/2, fs/2, nfft)
+    t_axis = np.linspace(0, len(echo_signal)/fs, num_frames)
+
+    # 显示
+    plt.figure(figsize=(10, 5))
+    plt.pcolormesh(t_axis, f_axis, S_db, shading='auto', cmap='jet')
+    plt.clim(S_db.max()-40, S_db.max())
+    plt.colorbar(label='dB')
+    plt.xlabel('Time (s)'); plt.ylabel('Doppler (Hz)')
+    plt.title('Micro-Doppler Spectrogram')
+    plt.tight_layout()
+    plt.show()
+
+    return S_db, f_axis, t_axis
+\end{lstlisting}
 
 %%==========================================================
 \section{MATLAB与Python关键语法对比}
