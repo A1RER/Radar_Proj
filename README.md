@@ -17,9 +17,12 @@
 
 ### 主要特性
 
-- **ISAR 成像**：距离分辨率 37.5 cm，支持多目标成像与自聚焦
+- **ISAR 成像**：距离分辨率 37.5 cm，支持多目标成像与多种自聚焦（PGA / GA / 熵最小化）
 - **PSO 优化**：图像熵降低约 35%，20 次迭代内收敛
-- **卡尔曼跟踪**：RMSE 从 5.2 m 降至 1.8 m，精度提升约 65%
+- **目标跟踪**：标准卡尔曼 / EKF / UKF 三种滤波器，RMSE 精度提升约 65%
+- **定位算法**：多基站 TDOA/AOA/RSS + TDOA-Taylor 级数迭代定位
+- **阵列信号处理**：MUSIC 算法高精度方位角估计
+- **微多普勒分析**：旋翼目标微多普勒特征提取与时频分析
 - **机器学习分类**：SVM / 决策树 / 神经网络 / PyTorch CNN，支持 5 类无人机目标识别
 - **双语实现**：MATLAB 与 Python 均提供完整代码
 
@@ -141,6 +144,13 @@ Radar_Proj/
 │   ├── ISAR_Demo.m                    # ISAR 基础演示
 │   ├── PSO_Optimization.m             # PSO 图像优化
 │   ├── Kalman_Filter.m                # 卡尔曼滤波跟踪
+│   ├── EKF_Tracking.m                 # 扩展卡尔曼滤波（非线性跟踪）
+│   ├── UKF_Tracking.m                 # 无迹卡尔曼滤波
+│   ├── PGA_Autofocus.m                # 相位梯度自聚焦
+│   ├── GA_Autofocus.m                 # 遗传算法自聚焦
+│   ├── MUSIC_Azimuth.m                # MUSIC 高分辨率方位角估计
+│   ├── TDOA_Taylor.m                  # TDOA Taylor 级数定位
+│   ├── MicroDoppler.m                 # 微多普勒特征提取与时频分析
 │   ├── module_isar_imaging.m          # ISAR 功能封装
 │   ├── module_pso_optimization.m      # PSO 功能封装
 │   ├── module_kalman_tracking.m       # Kalman 功能封装
@@ -160,12 +170,26 @@ Radar_Proj/
 │   ├── 15_ISAR_Advanced.py            # 高级 ISAR（多目标/运动补偿/自聚焦/质量评估）
 │   ├── 16_Main_System.py              # 主控脚本（整合 ISAR+PSO+Kalman）
 │   ├── 18_ML_Classification.py        # 深度学习分类（PyTorch CNN/ResNet）
-│   └── 19_SVM_Classification.py       # 传统 ML 分类（SVM/决策树/随机森林/KNN）
+│   ├── 19_SVM_Classification.py       # 传统 ML 分类（SVM/决策树/随机森林/KNN）
+│   ├── 21_MUSIC_Azimuth.py            # MUSIC 方位角估计
+│   ├── 22_PGA_Autofocus.py            # 相位梯度自聚焦
+│   ├── 23_GA_Autofocus.py             # 遗传算法自聚焦
+│   ├── 24_EKF_Tracking.py             # 扩展卡尔曼滤波跟踪
+│   ├── 25_UKF_Tracking.py             # 无迹卡尔曼滤波跟踪
+│   ├── 26_TDOA_Taylor.py              # TDOA Taylor 级数定位
+│   └── 27_MicroDoppler.py             # 微多普勒特征分析
 │
 └── md笔记/                            # 项目文档与笔记
-    ├── 13_GitHub_README.md
-    ├── 17_Learning_Resources.md
-    └── 20_Complete_Guide.md
+    ├── 02_4Week_Plan.md               # 四周学习计划
+    ├── 03_Daily_Checklist.md          # 每日任务清单
+    ├── 08_Functions_TODO.md           # 功能待办列表
+    ├── 09_PPT_Outline.md              # 演示文稿大纲
+    ├── 10_Final_Checklist.md          # 最终验收清单
+    ├── 12_Dual_Language_Plan.md       # 双语实现计划
+    ├── 13_GitHub_README.md            # GitHub README 草稿
+    ├── 16_Research_Roadmap.md         # 研究路线图
+    ├── 17_Learning_Resources.md       # 学习资源汇总
+    └── 20_Complete_Guide.md           # 完整使用指南
 ```
 
 ### 核心算法说明
@@ -237,9 +261,12 @@ This project implements **UAV (drone) detection, imaging, and tracking** using 5
 
 ### Features
 
-- **ISAR Imaging**: 37.5 cm range resolution, multi-target imaging with autofocus support
+- **ISAR Imaging**: 37.5 cm range resolution, multi-target imaging with PGA / GA / entropy-based autofocus
 - **PSO Optimization**: ~35% reduction in image entropy, converges within 20 iterations
-- **Kalman Tracking**: RMSE reduced from 5.2 m to 1.8 m (~65% accuracy improvement)
+- **Target Tracking**: Standard Kalman / EKF / UKF — RMSE accuracy improvement ~65%
+- **Localization**: Multi-station TDOA/AOA/RSS + TDOA Taylor-series iterative positioning
+- **Array Signal Processing**: MUSIC algorithm for high-resolution azimuth estimation
+- **Micro-Doppler Analysis**: Rotor micro-Doppler feature extraction and time-frequency analysis
 - **ML Classification**: SVM / Decision Tree / Neural Network / PyTorch CNN for 5-class UAV recognition
 - **Bilingual Implementation**: Complete codebase in both MATLAB and Python
 
@@ -347,6 +374,13 @@ Radar_Proj/
 │   ├── ISAR_Demo.m                    # Basic ISAR demo
 │   ├── PSO_Optimization.m             # PSO image optimization
 │   ├── Kalman_Filter.m                # Kalman filter tracking
+│   ├── EKF_Tracking.m                 # Extended Kalman filter (nonlinear tracking)
+│   ├── UKF_Tracking.m                 # Unscented Kalman filter
+│   ├── PGA_Autofocus.m                # Phase gradient autofocus
+│   ├── GA_Autofocus.m                 # Genetic algorithm autofocus
+│   ├── MUSIC_Azimuth.m                # MUSIC high-resolution azimuth estimation
+│   ├── TDOA_Taylor.m                  # TDOA Taylor-series localization
+│   ├── MicroDoppler.m                 # Micro-Doppler feature extraction & time-frequency
 │   ├── module_isar_imaging.m          # ISAR function module
 │   ├── module_pso_optimization.m      # PSO function module
 │   ├── module_kalman_tracking.m       # Kalman function module
@@ -366,12 +400,26 @@ Radar_Proj/
 │   ├── 15_ISAR_Advanced.py            # Advanced ISAR (multi-target/autofocus/quality)
 │   ├── 16_Main_System.py              # Main controller (ISAR + PSO + Kalman)
 │   ├── 18_ML_Classification.py        # Deep learning classifier (PyTorch CNN/ResNet)
-│   └── 19_SVM_Classification.py       # Traditional ML (SVM/Tree/RF/KNN)
+│   ├── 19_SVM_Classification.py       # Traditional ML (SVM/Tree/RF/KNN)
+│   ├── 21_MUSIC_Azimuth.py            # MUSIC azimuth estimation
+│   ├── 22_PGA_Autofocus.py            # Phase gradient autofocus
+│   ├── 23_GA_Autofocus.py             # Genetic algorithm autofocus
+│   ├── 24_EKF_Tracking.py             # Extended Kalman filter tracking
+│   ├── 25_UKF_Tracking.py             # Unscented Kalman filter tracking
+│   ├── 26_TDOA_Taylor.py              # TDOA Taylor-series localization
+│   └── 27_MicroDoppler.py             # Micro-Doppler feature analysis
 │
 └── md笔记/                            # Project notes and documentation
-    ├── 13_GitHub_README.md
-    ├── 17_Learning_Resources.md
-    └── 20_Complete_Guide.md
+    ├── 02_4Week_Plan.md               # Four-week study plan
+    ├── 03_Daily_Checklist.md          # Daily task checklist
+    ├── 08_Functions_TODO.md           # Feature backlog
+    ├── 09_PPT_Outline.md              # Presentation outline
+    ├── 10_Final_Checklist.md          # Final acceptance checklist
+    ├── 12_Dual_Language_Plan.md       # Bilingual implementation plan
+    ├── 13_GitHub_README.md            # GitHub README draft
+    ├── 16_Research_Roadmap.md         # Research roadmap
+    ├── 17_Learning_Resources.md       # Learning resources
+    └── 20_Complete_Guide.md           # Complete usage guide
 ```
 
 ### Algorithm Details
