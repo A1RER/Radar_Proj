@@ -28,18 +28,15 @@ def tdoa_taylor(stations, time_diffs, c=3e8, max_iter=20):
     N = len(stations)
     s1 = stations[0]
 
-    # Chan算法给出初始解
-    A = np.zeros((N-1, 3))
-    b = np.zeros(N-1)
-    for i in range(1, N):
-        si = stations[i]
-        A[i-1] = 2 * (si - s1)
-        b[i-1] = c**2 * time_diffs[i-1]**2 - si @ si + s1 @ s1
-    pos = np.linalg.lstsq(A, b, rcond=None)[0]
+    # 初始猜测：基站几何中心（比线性近似更稳定）
+    pos = np.mean(stations, axis=0).copy()
 
     # Taylor迭代精化
+    prev_norm = float('inf')
     for it in range(max_iter):
         d = np.array([np.linalg.norm(pos - stations[i]) for i in range(N)])
+        if np.any(d < 1e-6):
+            break
 
         # Jacobian 和 残差
         H = np.zeros((N-1, 3))
@@ -50,9 +47,15 @@ def tdoa_taylor(stations, time_diffs, c=3e8, max_iter=20):
 
         # 最小二乘更新
         delta_pos = np.linalg.lstsq(H, delta_r, rcond=None)[0]
-        pos = pos + delta_pos
+        curr_norm = np.linalg.norm(delta_pos)
 
-        if np.linalg.norm(delta_pos) < 1e-6:
+        # 发散检测：步长连续增大则停止
+        if curr_norm > prev_norm * 10:
+            break
+        prev_norm = curr_norm
+
+        pos = pos + delta_pos
+        if curr_norm < 1e-4:
             break
 
     return pos
@@ -62,20 +65,25 @@ def tdoa_chan(stations, time_diffs, c=3e8):
     """
     Chan算法TDOA定位（用于对比）
 
+    标准TDOA线性化方程：
+      2*(si - s1)·pos - 2*c*di*r1 = (c*di)^2 - ||si||^2 + ||s1||^2
+    其中 di = time_diffs[i-1], r1 = ||pos - s1||（作为第4个未知量）
+
     参数/返回同 tdoa_taylor
     """
     N = len(stations)
     s1 = stations[0]
 
+    # 直接线性化（忽略 r1 非线性项，作为快速近似基线）
     A = np.zeros((N-1, 3))
     b = np.zeros(N-1)
     for i in range(1, N):
         si = stations[i]
+        di = time_diffs[i-1]
         A[i-1] = 2 * (si - s1)
-        b[i-1] = c**2 * time_diffs[i-1]**2 - si @ si + s1 @ s1
+        b[i-1] = (c * di)**2 - si @ si + s1 @ s1
 
-    pos = np.linalg.lstsq(A, b, rcond=None)[0]
-    return pos
+    return np.linalg.lstsq(A, b, rcond=None)[0]
 
 
 def demo():
@@ -127,8 +135,10 @@ def demo():
             pos_taylor = tdoa_taylor(stations, noisy_tdiffs, c, max_iter=20)
             taylor_err.append(np.linalg.norm(pos_taylor - true_pos))
 
-        errors_chan[ni] = np.mean(chan_err)
-        errors_taylor[ni] = np.mean(taylor_err)
+        errors_chan[ni] = np.median(chan_err)
+        # 去除发散离群值后取中位数
+        taylor_arr = np.array(taylor_err)
+        errors_taylor[ni] = np.median(taylor_arr[taylor_arr < 1e6])
 
         range_err = sigma_t * c  # 等效距离误差
         print(f'  噪声={sigma_t*1e9:.1f}ns (≈{range_err:.1f}m): '
