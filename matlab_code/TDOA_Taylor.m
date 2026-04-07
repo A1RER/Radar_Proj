@@ -48,8 +48,14 @@ function TDOA_Taylor()
             taylor_err(trial) = norm(pos_taylor - true_pos);
         end
 
-        errors_chan(ni) = mean(chan_err);
-        errors_taylor(ni) = mean(taylor_err);
+        errors_chan(ni) = median(chan_err);
+        % 过滤发散离群值后取中位数
+        valid = taylor_err < 1e6;
+        if any(valid)
+            errors_taylor(ni) = median(taylor_err(valid));
+        else
+            errors_taylor(ni) = NaN;
+        end
 
         range_err = sigma_t * c;
         fprintf('  噪声=%.1fns (~%.1fm): Chan=%.2fm, Taylor=%.2fm\n', ...
@@ -100,21 +106,17 @@ function pos = tdoa_taylor_func(stations, time_diffs, c, max_iter)
     N = size(stations, 1);
     s1 = stations(1,:)';
 
-    % Chan初始解
-    A = zeros(N-1, 3); b = zeros(N-1, 1);
-    for i = 2:N
-        si = stations(i,:)';
-        A(i-1,:) = 2*(si - s1)';
-        b(i-1) = c^2*time_diffs(i-1)^2 - si'*si + s1'*s1;
-    end
-    pos = (A'*A) \ (A'*b);
+    % 初始猜测：基站几何中心
+    pos = mean(stations, 1)';
 
-    % Taylor迭代精化
+    % Taylor迭代精化（含发散检测）
+    prev_norm = inf;
     for iter = 1:max_iter
         d = zeros(N, 1);
         for i = 1:N
             d(i) = norm(pos - stations(i,:)');
         end
+        if any(d < 1e-6), break; end
 
         H = zeros(N-1, 3);
         delta_r = zeros(N-1, 1);
@@ -125,11 +127,12 @@ function pos = tdoa_taylor_func(stations, time_diffs, c, max_iter)
         end
 
         delta_pos = (H'*H) \ (H'*delta_r);
+        curr_norm = norm(delta_pos);
+        if curr_norm > prev_norm * 10, break; end  % 发散检测
+        prev_norm = curr_norm;
         pos = pos + delta_pos;
 
-        if norm(delta_pos) < 1e-6
-            break;
-        end
+        if curr_norm < 1e-4, break; end
     end
 end
 
