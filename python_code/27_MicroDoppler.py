@@ -124,8 +124,8 @@ def demo():
         S_db, f_axis, t_axis = micro_doppler_stft(echo, PRF, window_len=64)
 
         # 时频图
-        axes[0, col].pcolormesh(t_axis, f_axis, S_db, shading='auto', cmap='jet')
-        axes[0, col].set_clim(S_db.max()-40, S_db.max())
+        im = axes[0, col].pcolormesh(t_axis, f_axis, S_db, shading='auto', cmap='jet',
+                                      vmin=S_db.max()-40, vmax=S_db.max())
         axes[0, col].set_xlabel('时间 (s)')
         axes[0, col].set_ylabel('多普勒频率 (Hz)')
         axes[0, col].set_title(cfg['name'])
